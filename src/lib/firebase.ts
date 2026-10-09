@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getDatabase } from 'firebase/database'
+import { getFirestore } from 'firebase/firestore'
 
 // PASTE YOUR FIREBASE CONFIG HERE
 // Go to: https://console.firebase.google.com → Create Project → Web App → Get Config
@@ -15,4 +16,5 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 export const database = getDatabase(app)
+export const firestore = getFirestore(app)
 export default app
