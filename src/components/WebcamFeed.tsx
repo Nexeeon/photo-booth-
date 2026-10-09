@@ -3,7 +3,7 @@ import Webcam from 'react-webcam'
 import { Camera, VideoOff, RotateCcw } from 'lucide-react'
 
 interface WebcamFeedProps {
-  webcamRef: React.RefObject<Webcam>
+  webcamRef: React.RefObject<Webcam | null>
   showFlash: boolean
   isCapturing: boolean
   countdownCount: number
