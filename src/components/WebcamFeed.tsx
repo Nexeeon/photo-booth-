@@ -1,6 +1,10 @@
-import React, { useEffect, useRef, useCallback } from 'react'
+import React, { useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
 import Webcam from 'react-webcam'
 import { VideoOff, RotateCcw, User } from 'lucide-react'
+
+export interface WebcamFeedHandle {
+  captureCompositeCanvas: () => string | null
+}
 
 interface WebcamFeedProps {
   webcamRef: React.RefObject<Webcam | null>
@@ -13,16 +17,15 @@ interface WebcamFeedProps {
   mirrored?: boolean
 }
 
-export const WebcamFeed: React.FC<WebcamFeedProps> = ({
+export const WebcamFeed = forwardRef<WebcamFeedHandle, WebcamFeedProps>(({
   webcamRef,
   remoteStream,
   showFlash,
-  isCapturing,
   countdownCount,
   isCountdownActive,
   onReady,
   mirrored = true,
-}) => {
+}, ref) => {
   const [hasPermission, setHasPermission] = React.useState<boolean | null>(null)
   const [facingMode, setFacingMode] = React.useState<'user' | 'environment'>('user')
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
@@ -33,7 +36,103 @@ export const WebcamFeed: React.FC<WebcamFeedProps> = ({
     }
   }, [remoteStream])
 
-  // Get stream from Webcam component on mount
+  // Function to draw local + remote video onto 1 single combined canvas
+  const captureCompositeCanvas = useCallback((): string | null => {
+    const localVideo = webcamRef.current?.video
+    const remoteVideo = remoteVideoRef.current
+
+    const canvas = document.createElement('canvas')
+    canvas.width = 1280
+    canvas.height = 720
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+
+    // Background
+    ctx.fillStyle = '#0A0612'
+    ctx.fillRect(0, 0, 1280, 720)
+
+    const isRemoteActive = remoteVideo && remoteVideo.readyState >= 2 && !remoteVideo.paused
+
+    if (isRemoteActive && localVideo && localVideo.readyState >= 2) {
+      // --- SPLIT SCREEN: LEFT = LOCAL, RIGHT = REMOTE ---
+
+      // 1. Draw Local Video (Left 640x720)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(0, 0, 640, 720)
+      ctx.clip()
+
+      // Mirror horizontally
+      ctx.translate(640, 0)
+      ctx.scale(-1, 1)
+
+      // Object-cover crop logic for local video
+      const vWidth = localVideo.videoWidth || 640
+      const vHeight = localVideo.videoHeight || 720
+      const scale = Math.max(640 / vWidth, 720 / vHeight)
+      const sw = 640 / scale
+      const sh = 720 / scale
+      const sx = (vWidth - sw) / 2
+      const sy = (vHeight - sh) / 2
+
+      ctx.drawImage(localVideo, sx, sy, sw, sh, 0, 0, 640, 720)
+      ctx.restore()
+
+      // 2. Draw Remote Video (Right 640x720)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(640, 0, 640, 720)
+      ctx.clip()
+
+      ctx.translate(1920, 0)
+      ctx.scale(-1, 1)
+
+      const rvWidth = remoteVideo.videoWidth || 640
+      const rvHeight = remoteVideo.videoHeight || 720
+      const rScale = Math.max(640 / rvWidth, 720 / rvHeight)
+      const rsw = 640 / rScale
+      const rsh = 720 / rScale
+      const rsx = (rvWidth - rsw) / 2
+      const rsy = (rvHeight - rsh) / 2
+
+      ctx.drawImage(remoteVideo, rsx, rsy, rsw, rsh, 640, 0, 640, 720)
+      ctx.restore()
+
+      // 3. Center divider line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'
+      ctx.lineWidth = 4
+      ctx.beginPath()
+      ctx.moveTo(640, 0)
+      ctx.lineTo(640, 720)
+      ctx.stroke()
+
+    } else if (localVideo && localVideo.readyState >= 2) {
+      // --- SOLO CAMERA (FULL 1280x720) ---
+      ctx.save()
+      ctx.translate(1280, 0)
+      ctx.scale(-1, 1)
+
+      const vWidth = localVideo.videoWidth || 1280
+      const vHeight = localVideo.videoHeight || 720
+      const scale = Math.max(1280 / vWidth, 720 / vHeight)
+      const sw = 1280 / scale
+      const sh = 720 / scale
+      const sx = (vWidth - sw) / 2
+      const sy = (vHeight - sh) / 2
+
+      ctx.drawImage(localVideo, sx, sy, sw, sh, 0, 0, 1280, 720)
+      ctx.restore()
+    } else {
+      return null
+    }
+
+    return canvas.toDataURL('image/jpeg', 0.95)
+  }, [webcamRef])
+
+  useImperativeHandle(ref, () => ({
+    captureCompositeCanvas,
+  }))
+
   const handleUserMedia = useCallback((stream: MediaStream) => {
     setHasPermission(true)
     onReady?.(stream)
@@ -56,8 +155,8 @@ export const WebcamFeed: React.FC<WebcamFeedProps> = ({
         {hasPermission !== false && (
           <Webcam
             ref={webcamRef}
-            audio={true} // Explicitly request audio for WebRTC, but we will mute local playback
-            muted={true} // Never hear yourself
+            audio={true}
+            muted={true}
             screenshotFormat="image/jpeg"
             screenshotQuality={0.92}
             videoConstraints={{
@@ -99,14 +198,13 @@ export const WebcamFeed: React.FC<WebcamFeedProps> = ({
             className="w-full h-full object-cover" 
             style={{ transform: 'scaleX(-1)' }} 
           />
-          {/* We do NOT mute remote stream, so we can hear them! */}
           <div className="absolute bottom-3 right-3 px-2 py-1 glass rounded-md flex items-center justify-center z-10">
              <span className="text-[10px] font-bold text-white/90 uppercase tracking-widest drop-shadow-md">Friend</span>
           </div>
         </div>
       )}
 
-      {/* Wait overlay */}
+      {/* Waiting overlay */}
       {!isSplit && (
         <div className="absolute top-3 right-3 glass px-3 py-1.5 rounded-full flex items-center gap-2 animate-pulse z-10 border border-white/10">
            <User size={12} className="text-white/50" />
@@ -114,7 +212,7 @@ export const WebcamFeed: React.FC<WebcamFeedProps> = ({
         </div>
       )}
 
-      {/* Global Overlays */}
+      {/* Global Countdown Overlay */}
       {isCountdownActive && countdownCount > 0 && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-20">
           <div
@@ -156,4 +254,5 @@ export const WebcamFeed: React.FC<WebcamFeedProps> = ({
       </div>
     </div>
   )
-}
+})
+WebcamFeed.displayName = 'WebcamFeed'

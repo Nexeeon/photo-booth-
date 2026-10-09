@@ -2,24 +2,26 @@ import React, { useRef, useState, useEffect } from 'react'
 import html2canvas from 'html2canvas'
 import { FRAME_TEMPLATES } from '../utils/frames'
 import { formatPhotoDate } from '../utils/helpers'
-import type { CapturedPhoto } from '../types'
+import type { CapturedPhoto, PhotoLayout } from '../types'
 import { Download, Loader2, Sparkles } from 'lucide-react'
 
 interface PhotoStripProps {
   photos: CapturedPhoto[]
   frameId: string
+  layoutId?: PhotoLayout
   roomId: string
 }
 
-export const PhotoStrip: React.FC<PhotoStripProps> = ({ photos, frameId, roomId }) => {
+export const PhotoStrip: React.FC<PhotoStripProps> = ({ photos, frameId, layoutId = 'strip-4', roomId }) => {
   const stripRef = useRef<HTMLDivElement>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isReady, setIsReady] = useState(false)
 
   const frame = FRAME_TEMPLATES.find(f => f.id === frameId) || FRAME_TEMPLATES[0]
 
+  const displayPhotos = layoutId === 'strip-3' ? photos.slice(0, 3) : photos.slice(0, 4)
+
   useEffect(() => {
-    // Pre-load all images
     const loadPromises = photos.map(p => {
       return new Promise<void>((resolve) => {
         const img = new Image()
@@ -37,7 +39,7 @@ export const PhotoStrip: React.FC<PhotoStripProps> = ({ photos, frameId, roomId 
 
     try {
       const canvas = await html2canvas(stripRef.current, {
-        scale: 2, // 2x resolution
+        scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: null,
@@ -45,7 +47,7 @@ export const PhotoStrip: React.FC<PhotoStripProps> = ({ photos, frameId, roomId 
       })
 
       const link = document.createElement('a')
-      link.download = `flashbooth-${roomId}-${Date.now()}.png`
+      link.download = `flashbooth-${roomId}-${layoutId}-${Date.now()}.png`
       link.href = canvas.toDataURL('image/png', 1.0)
       link.click()
     } catch (err) {
@@ -57,54 +59,74 @@ export const PhotoStrip: React.FC<PhotoStripProps> = ({ photos, frameId, roomId 
 
   return (
     <div className="flex flex-col items-center gap-6">
-      {/* Photo Strip Render Target */}
+      {/* Render Target */}
       <div
         ref={stripRef}
         className="relative rounded-2xl overflow-hidden"
         style={{
           background: frame.bgColor,
-          padding: '16px 12px',
-          width: '240px',
+          padding: layoutId === 'grid-2x2' ? '18px 16px' : '16px 14px',
+          width: layoutId === 'grid-2x2' ? '320px' : '250px',
           boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
         }}
       >
-        {/* Top label */}
+        {/* Header Branding */}
         <div className="text-center mb-3">
-          <p className="font-bold text-sm tracking-widest uppercase" style={{ color: frame.accentColor, opacity: 0.9 }}>
+          <p className="font-bold text-xs tracking-[0.25em] uppercase" style={{ color: frame.accentColor, opacity: 0.9 }}>
             ✦ FlashBooth ✦
           </p>
         </div>
 
-        {/* Photos */}
-        <div className="flex flex-col gap-2">
-          {photos.map((photo, idx) => (
-            <div
-              key={photo.id}
-              className="relative overflow-hidden rounded-xl"
-              style={{
-                border: '3px solid rgba(255,255,255,0.2)',
-                aspectRatio: '16/9',
-              }}
-            >
-              <img
-                src={photo.dataUrl}
-                alt={`Photo ${idx + 1}`}
-                className="w-full h-full object-cover"
-                crossOrigin="anonymous"
-              />
-            </div>
-          ))}
-        </div>
+        {/* Photos Layout Container */}
+        {layoutId === 'grid-2x2' ? (
+          <div className="grid grid-cols-2 gap-2">
+            {displayPhotos.map((photo, idx) => (
+              <div
+                key={photo.id}
+                className="relative overflow-hidden rounded-lg aspect-video shadow-sm"
+                style={{
+                  border: '2px solid rgba(255,255,255,0.3)',
+                }}
+              >
+                <img
+                  src={photo.dataUrl}
+                  alt={`Photo ${idx + 1}`}
+                  className="w-full h-full object-cover"
+                  crossOrigin="anonymous"
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {displayPhotos.map((photo, idx) => (
+              <div
+                key={photo.id}
+                className="relative overflow-hidden rounded-xl aspect-video shadow-sm"
+                style={{
+                  border: '3px solid rgba(255,255,255,0.25)',
+                }}
+              >
+                <img
+                  src={photo.dataUrl}
+                  alt={`Photo ${idx + 1}`}
+                  className="w-full h-full object-cover"
+                  crossOrigin="anonymous"
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
-        {/* Footer */}
+        {/* Footer info */}
         <div className="mt-3 text-center">
-          <p className="text-[10px] font-medium tracking-wider" style={{ color: frame.textColor, opacity: 0.6 }}>
+          <p className="text-[10px] font-medium tracking-widest uppercase" style={{ color: frame.textColor, opacity: 0.7 }}>
             {formatPhotoDate()} • #{roomId}
           </p>
           <Sparkles
             size={12}
             className="mx-auto mt-1"
-            style={{ color: frame.accentColor, opacity: 0.5 }}
+            style={{ color: frame.accentColor, opacity: 0.6 }}
           />
         </div>
       </div>
@@ -113,7 +135,7 @@ export const PhotoStrip: React.FC<PhotoStripProps> = ({ photos, frameId, roomId 
       <button
         onClick={handleDownload}
         disabled={!isReady || isDownloading}
-        className="btn-primary flex items-center gap-3"
+        className="btn-primary flex items-center gap-3 w-full justify-center !py-3"
       >
         {isDownloading ? (
           <>

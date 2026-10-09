@@ -35,6 +35,8 @@ export interface FrameTemplate {
   borderStyle: string
 }
 
+export type PhotoLayout = 'strip-4' | 'grid-2x2' | 'strip-3'
+
 export interface RoomSession {
   id: string
   hostId: string
@@ -43,6 +45,7 @@ export interface RoomSession {
   countdown: CountdownState
   photos: CapturedPhoto[]
   frameId: string
+  layoutId?: PhotoLayout
   createdAt: number
   selectedPhotoCount: number
 }

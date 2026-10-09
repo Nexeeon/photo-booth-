@@ -16,7 +16,7 @@ interface UseRoomSessionReturn {
   isLoading: boolean
   error: string | null
   startSession: () => Promise<void>
-  capturePhoto: (webcamRef: React.RefObject<any>) => Promise<void>
+  capturePhoto: (dataUrl: string) => Promise<void>
   changeFrame: (frameId: string) => Promise<void>
   sessionState: SessionState
   countdownCount: number
@@ -64,8 +64,6 @@ export function useRoomSession({ roomId, role }: UseRoomSessionProps): UseRoomSe
     }
   }, [roomId])
 
-  // Monitor countdown from Firebase → only HOST drives the timer
-  // The count is synced from Firebase, everyone reads it
   const sessionState: SessionState = session?.state || 'waiting'
   const countdownCount: number = session?.countdown?.count ?? 0
 
@@ -92,7 +90,7 @@ export function useRoomSession({ roomId, role }: UseRoomSessionProps): UseRoomSe
         count: 0,
         photoIndex: photoIdx,
       })
-      await sleep(500)
+      await sleep(1000)
 
       if (photoIdx < PHOTO_COUNT - 1) {
         // Brief pause between photos
@@ -105,9 +103,9 @@ export function useRoomSession({ roomId, role }: UseRoomSessionProps): UseRoomSe
     await firebaseRoom.updateSessionState(roomId, 'preview')
   }, [roomId, role, firebaseRoom])
 
-  /** BOTH users: capture photo when state=capturing */
-  const capturePhoto = useCallback(async (webcamRef: React.RefObject<any>) => {
-    if (!webcamRef.current || !session) return
+  /** Save photo dataUrl into Firebase */
+  const capturePhoto = useCallback(async (dataUrl: string) => {
+    if (!dataUrl || !session) return
     if (isCapturing) return
 
     setIsCapturing(true)
@@ -115,13 +113,10 @@ export function useRoomSession({ roomId, role }: UseRoomSessionProps): UseRoomSe
     setTimeout(() => setShowFlash(false), 500)
 
     try {
-      const imageSrc: string = webcamRef.current.getScreenshot({ width: 1280, height: 720 })
-      if (!imageSrc) return
-
       const photoId = `photo_${Date.now()}_${currentUserId.current}`
       const photo: CapturedPhoto = {
         id: photoId,
-        dataUrl: imageSrc,
+        dataUrl,
         capturedAt: Date.now(),
         capturedBy: currentUserId.current,
       }

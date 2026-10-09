@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { collection, doc, setDoc, onSnapshot, addDoc, getDoc } from 'firebase/firestore'
+import { collection, doc, setDoc, onSnapshot, addDoc } from 'firebase/firestore'
 import { firestore } from '../lib/firebase'
 import type { UserRole } from '../types'
 
@@ -18,125 +18,150 @@ export function useWebRTC(roomId: string, role: UserRole, localStream: MediaStre
     if (!roomId || !localStream || connectingRef.current) return
     connectingRef.current = true
 
-    const isMock = import.meta.env.VITE_FIREBASE_API_KEY === undefined || import.meta.env.VITE_FIREBASE_API_KEY === 'demo-key'
-    if (isMock) {
-      console.warn("WebRTC membutuhkan Firebase asli. Silakan isi .env Anda untuk mengaktifkan video P2P lintas jaringan.")
-      return
-    }
+    let unsubRoom: (() => void) | null = null
+    let unsubCandidates: (() => void) | null = null
 
     const initWebRTC = async () => {
-      const pc = new RTCPeerConnection(STUN_SERVERS)
-      pcRef.current = pc
+      try {
+        const pc = new RTCPeerConnection(STUN_SERVERS)
+        pcRef.current = pc
 
-      const remoteMediaStream = new MediaStream()
-      setRemoteStream(remoteMediaStream)
+        const remoteMediaStream = new MediaStream()
+        setRemoteStream(remoteMediaStream)
 
-      // 1. Masukkan video/audio lokal kita ke dalam PeerConnection
-      localStream.getTracks().forEach((track) => {
-        pc.addTrack(track, localStream)
-      })
-
-      // 2. Dengarkan track yang masuk dari stream teman (Remote)
-      pc.ontrack = (event) => {
-        event.streams[0].getTracks().forEach((track) => {
-          remoteMediaStream.addTrack(track)
+        // 1. Masukkan track lokal kita ke PeerConnection
+        localStream.getTracks().forEach((track) => {
+          pc.addTrack(track, localStream)
         })
-      }
 
-      // Firestore Refs
-      const roomDoc = doc(firestore, 'webrtc_rooms', roomId)
-      const callerCandidatesCol = collection(roomDoc, 'callerCandidates')
-      const calleeCandidatesCol = collection(roomDoc, 'calleeCandidates')
-
-      if (role === 'host') {
-        // --- LOGIKA HOST ---
-
-        // Setiap kali kita menemukan rute jaringan (ICE), simpan di Firestore agar terbaca oleh Guest
-        pc.onicecandidate = (event) => {
-          if (event.candidate) {
-            addDoc(callerCandidatesCol, event.candidate.toJSON())
+        // 2. Dengarkan track remote dari teman
+        pc.ontrack = (event) => {
+          if (event.streams && event.streams[0]) {
+            setRemoteStream(event.streams[0])
+          } else {
+            event.streams[0]?.getTracks().forEach((track) => {
+              remoteMediaStream.addTrack(track)
+            })
+            setRemoteStream(remoteMediaStream)
           }
         }
 
-        // Buat Offer
-        const offerDescription = await pc.createOffer()
-        await pc.setLocalDescription(offerDescription)
+        const roomDoc = doc(firestore, 'webrtc_rooms', roomId)
+        const callerCandidatesCol = collection(roomDoc, 'callerCandidates')
+        const calleeCandidatesCol = collection(roomDoc, 'calleeCandidates')
 
-        const offer = {
-          sdp: offerDescription.sdp,
-          type: offerDescription.type,
+        const candidateQueue: RTCIceCandidateInit[] = []
+
+        const processCandidate = async (candidate: RTCIceCandidateInit) => {
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate))
+            } catch (e) {
+              console.error('Error adding ICE candidate:', e)
+            }
+          } else {
+            candidateQueue.push(candidate)
+          }
         }
 
-        // Simpan Offer ke dalan document room
-        await setDoc(roomDoc, { offer })
-
-        // Pantau kapan Guest merespons dengan Answer
-        onSnapshot(roomDoc, (snapshot) => {
-          const data = snapshot.data()
-          if (!pc.currentRemoteDescription && data?.answer) {
-            const answerDescription = new RTCSessionDescription(data.answer)
-            pc.setRemoteDescription(answerDescription)
+        const flushCandidateQueue = async () => {
+          while (candidateQueue.length > 0) {
+            const candidate = candidateQueue.shift()
+            if (candidate) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate))
+              } catch (e) {
+                console.error('Error flushing candidate:', e)
+              }
+            }
           }
-        })
+        }
 
-        // Pantau ICE candidates yang dikirim oleh Guest
-        onSnapshot(calleeCandidatesCol, (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === 'added') {
-              const candidate = new RTCIceCandidate(change.doc.data())
-              pc.addIceCandidate(candidate)
+        if (role === 'host') {
+          // --- LOGIKA HOST ---
+          pc.onicecandidate = (event) => {
+            if (event.candidate) {
+              addDoc(callerCandidatesCol, event.candidate.toJSON()).catch(console.error)
+            }
+          }
+
+          // Buat Offer
+          const offerDescription = await pc.createOffer()
+          await pc.setLocalDescription(offerDescription)
+
+          await setDoc(roomDoc, {
+            offer: {
+              sdp: offerDescription.sdp,
+              type: offerDescription.type,
             }
           })
-        })
 
-      } else {
-        // --- LOGIKA GUEST ---
-
-        // Tangkap rute jaringan kita, simpan di subkoleksi callee
-        pc.onicecandidate = (event) => {
-          if (event.candidate) {
-            addDoc(calleeCandidatesCol, event.candidate.toJSON())
-          }
-        }
-
-        // Baca data Room yang berisi Offer dari Host
-        const roomSnapshot = await getDoc(roomDoc)
-        if (roomSnapshot.exists()) {
-          const data = roomSnapshot.data()
-          
-          if (data?.offer && !pc.currentRemoteDescription) {
-            const offerDescription = new RTCSessionDescription(data.offer)
-            await pc.setRemoteDescription(offerDescription)
-
-            // Buat Answer untuk merespons Offer
-            const answerDescription = await pc.createAnswer()
-            await pc.setLocalDescription(answerDescription)
-
-            const answer = {
-              sdp: answerDescription.sdp,
-              type: answerDescription.type,
-            }
-
-            // Update document room dengan Answer kita
-            await setDoc(roomDoc, { answer }, { merge: true })
-          }
-        }
-
-        // Pantau jika Host menambahkan rute baru di tengah jalan
-        onSnapshot(callerCandidatesCol, (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === 'added') {
-              const candidate = new RTCIceCandidate(change.doc.data())
-              pc.addIceCandidate(candidate)
+          // Pantau Answer dari Guest
+          unsubRoom = onSnapshot(roomDoc, async (snapshot) => {
+            const data = snapshot.data()
+            if (!pc.currentRemoteDescription && data?.answer) {
+              const answerDescription = new RTCSessionDescription(data.answer)
+              await pc.setRemoteDescription(answerDescription)
+              await flushCandidateQueue()
             }
           })
-        })
+
+          // Pantau ICE candidates dari Guest
+          unsubCandidates = onSnapshot(calleeCandidatesCol, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+              if (change.type === 'added') {
+                processCandidate(change.doc.data() as RTCIceCandidateInit)
+              }
+            })
+          })
+
+        } else {
+          // --- LOGIKA GUEST ---
+          pc.onicecandidate = (event) => {
+            if (event.candidate) {
+              addDoc(calleeCandidatesCol, event.candidate.toJSON()).catch(console.error)
+            }
+          }
+
+          // Pantau Offer dari Host (secara reaktif)
+          unsubRoom = onSnapshot(roomDoc, async (snapshot) => {
+            const data = snapshot.data()
+            if (data?.offer && !pc.currentRemoteDescription) {
+              const offerDescription = new RTCSessionDescription(data.offer)
+              await pc.setRemoteDescription(offerDescription)
+              await flushCandidateQueue()
+
+              const answerDescription = await pc.createAnswer()
+              await pc.setLocalDescription(answerDescription)
+
+              await setDoc(roomDoc, {
+                answer: {
+                  sdp: answerDescription.sdp,
+                  type: answerDescription.type,
+                }
+              }, { merge: true })
+            }
+          })
+
+          // Pantau ICE candidates dari Host
+          unsubCandidates = onSnapshot(callerCandidatesCol, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+              if (change.type === 'added') {
+                processCandidate(change.doc.data() as RTCIceCandidateInit)
+              }
+            })
+          })
+        }
+      } catch (err) {
+        console.error('WebRTC initialization error:', err)
       }
     }
 
     initWebRTC()
 
     return () => {
+      unsubRoom?.()
+      unsubCandidates?.()
       if (pcRef.current) {
         pcRef.current.close()
         pcRef.current = null

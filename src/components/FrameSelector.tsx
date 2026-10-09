@@ -1,38 +1,108 @@
 import React from 'react'
 import { FRAME_TEMPLATES } from '../utils/frames'
-import type { FrameTemplate } from '../types'
-import { Check } from 'lucide-react'
+import type { FrameTemplate, PhotoLayout } from '../types'
+import { Check, LayoutGrid, Rows, Layers } from 'lucide-react'
 
 interface FrameSelectorProps {
   selectedFrameId: string
-  onSelect: (frameId: string) => void
+  selectedLayout?: PhotoLayout
+  onSelectFrame: (frameId: string) => void
+  onSelectLayout?: (layoutId: PhotoLayout) => void
   disabled?: boolean
 }
 
 export const FrameSelector: React.FC<FrameSelectorProps> = ({
   selectedFrameId,
-  onSelect,
+  selectedLayout = 'strip-4',
+  onSelectFrame,
+  onSelectLayout,
   disabled = false,
 }) => {
   return (
-    <div className="card-glass">
-      <h3 className="text-sm font-semibold text-white/50 uppercase tracking-widest mb-3">
-        Choose Frame
-      </h3>
-      <div className="grid grid-cols-4 gap-2">
-        {FRAME_TEMPLATES.map((frame) => (
-          <FrameButton
-            key={frame.id}
-            frame={frame}
-            isSelected={selectedFrameId === frame.id}
-            onSelect={onSelect}
-            disabled={disabled}
-          />
-        ))}
+    <div className="card-glass flex flex-col gap-4">
+      {/* Layout Selection */}
+      {onSelectLayout && (
+        <div>
+          <h3 className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <LayoutGrid size={13} className="text-pink-400" />
+            Choose Layout
+          </h3>
+          <div className="grid grid-cols-3 gap-2">
+            <LayoutOption
+              id="strip-4"
+              label="4-Strip Classic"
+              icon={<Rows size={16} />}
+              isSelected={selectedLayout === 'strip-4'}
+              onSelect={onSelectLayout}
+              disabled={disabled}
+            />
+            <LayoutOption
+              id="grid-2x2"
+              label="2x2 Photocard"
+              icon={<LayoutGrid size={16} />}
+              isSelected={selectedLayout === 'grid-2x2'}
+              onSelect={onSelectLayout}
+              disabled={disabled}
+            />
+            <LayoutOption
+              id="strip-3"
+              label="3-Strip Mini"
+              icon={<Layers size={16} />}
+              isSelected={selectedLayout === 'strip-3'}
+              onSelect={onSelectLayout}
+              disabled={disabled}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Frame Selection */}
+      <div>
+        <h3 className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-2">
+          Choose Frame Color
+        </h3>
+        <div className="grid grid-cols-4 sm:grid-cols-8 lg:grid-cols-4 gap-2">
+          {FRAME_TEMPLATES.map((frame) => (
+            <FrameButton
+              key={frame.id}
+              frame={frame}
+              isSelected={selectedFrameId === frame.id}
+              onSelect={onSelectFrame}
+              disabled={disabled}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )
 }
+
+interface LayoutOptionProps {
+  id: PhotoLayout
+  label: string
+  icon: React.ReactNode
+  isSelected: boolean
+  onSelect: (id: PhotoLayout) => void
+  disabled: boolean
+}
+
+const LayoutOption: React.FC<LayoutOptionProps> = ({ id, label, icon, isSelected, onSelect, disabled }) => (
+  <button
+    onClick={() => !disabled && onSelect(id)}
+    disabled={disabled}
+    className={`
+      flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-medium
+      transition-all duration-300
+      ${isSelected 
+        ? 'bg-pink-500/20 border-pink-400 text-white shadow-lg shadow-pink-500/10' 
+        : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:border-white/20'}
+      ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
+    `}
+  >
+    {icon}
+    <span>{label}</span>
+  </button>
+)
 
 interface FrameButtonProps {
   frame: FrameTemplate
@@ -46,19 +116,17 @@ const FrameButton: React.FC<FrameButtonProps> = ({ frame, isSelected, onSelect, 
     onClick={() => !disabled && onSelect(frame.id)}
     disabled={disabled}
     className={`
-      relative flex flex-col items-center gap-1.5 p-2 rounded-xl
+      relative flex flex-col items-center gap-1.5 p-1.5 rounded-xl
       transition-all duration-300 group
-      ${isSelected ? 'ring-2 ring-white/40 scale-105' : 'hover:scale-105 opacity-70 hover:opacity-100'}
+      ${isSelected ? 'ring-2 ring-white/50 scale-105' : 'hover:scale-105 opacity-70 hover:opacity-100'}
       ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}
     `}
     title={frame.label}
   >
-    {/* Color swatch */}
     <div
-      className="w-10 h-14 rounded-lg relative overflow-hidden"
+      className="w-9 h-12 rounded-lg relative overflow-hidden shrink-0"
       style={{ background: frame.bgColor, border: frame.borderStyle }}
     >
-      {/* Mini photo strip preview */}
       <div className="absolute inset-1 flex flex-col gap-0.5">
         {[0, 1, 2, 3].map(i => (
           <div key={i} className="flex-1 rounded-sm bg-black/20" />
@@ -70,7 +138,7 @@ const FrameButton: React.FC<FrameButtonProps> = ({ frame, isSelected, onSelect, 
         </div>
       )}
     </div>
-    <span className="text-[10px] font-medium text-white/60 text-center leading-none">
+    <span className="text-[9px] font-medium text-white/70 text-center leading-none truncate w-full">
       {frame.label}
     </span>
   </button>
