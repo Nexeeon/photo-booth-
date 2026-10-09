@@ -1,6 +1,6 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
-import { ref, set, onValue, update, onDisconnect, get } from 'firebase/database'
-import { database } from '../lib/firebase'
+import { useEffect, useRef, useCallback } from 'react'
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
+import { firestore } from '../lib/firebase'
 import type { RoomSession, RoomUser, CapturedPhoto, CountdownState } from '../types'
 
 const isMock = 
@@ -8,27 +8,16 @@ const isMock =
   import.meta.env.VITE_FIREBASE_API_KEY === 'demo-key' ||
   import.meta.env.VITE_FIREBASE_API_KEY?.includes('your_api_key');
 
-// --- Local Storage Mock for Demo Mode ---
+// --- Local Storage Mock for Demo Mode (Fallback jika Firebase belum diset di .env) ---
 const MOCK_KEY = 'photobooth_rooms'
-
-function getMockData() {
-  try {
-    return JSON.parse(localStorage.getItem(MOCK_KEY) || '{}')
-  } catch {
-    return {}
-  }
-}
-
-function saveMockData(data: any) {
-  localStorage.setItem(MOCK_KEY, JSON.stringify(data))
-  window.dispatchEvent(new Event('storage_mock'))
-}
+function getMockData() { try { return JSON.parse(localStorage.getItem(MOCK_KEY) || '{}') } catch { return {} } }
+function saveMockData(data: any) { localStorage.setItem(MOCK_KEY, JSON.stringify(data)); window.dispatchEvent(new Event('storage_mock')) }
 
 export function useFirebaseRoom(roomId: string | undefined) {
   if (isMock) {
     return useLocalMockRoom(roomId)
   }
-  return useRealFirebaseRoom(roomId)
+  return useFirestoreRoom(roomId)
 }
 
 function useLocalMockRoom(roomId: string | undefined) {
@@ -39,21 +28,14 @@ function useLocalMockRoom(roomId: string | undefined) {
     listenersRef.current = []
   }, [])
 
-  useEffect(() => {
-    return cleanup
-  }, [roomId, cleanup])
+  useEffect(() => { return cleanup }, [roomId, cleanup])
 
   const createRoom = async (rid: string, hostUser: RoomUser): Promise<void> => {
     const data = getMockData()
     data[rid] = {
-      id: rid,
-      hostId: hostUser.id,
-      state: 'waiting',
+      id: rid, hostId: hostUser.id, state: 'waiting',
       countdown: { isActive: false, count: 0, photoIndex: 0 },
-      photos: {},
-      frameId: 'classic-pink',
-      createdAt: Date.now(),
-      selectedPhotoCount: 4,
+      photos: {}, frameId: 'classic-pink', createdAt: Date.now(), selectedPhotoCount: 4,
       users: { [hostUser.id]: { ...hostUser, isOnline: true } }
     }
     saveMockData(data)
@@ -66,7 +48,6 @@ function useLocalMockRoom(roomId: string | undefined) {
     data[rid].users[user.id] = { ...user, isOnline: true, joinedAt: Date.now() }
     saveMockData(data)
     
-    // onDisconnect mock essentially removes the user if the tab is closed
     const handleUnload = () => {
       const currentData = getMockData()
       if (currentData[rid]?.users?.[user.id]) {
@@ -87,26 +68,17 @@ function useLocalMockRoom(roomId: string | undefined) {
 
   const leaveRoom = async (rid: string, userId: string): Promise<void> => {
     const data = getMockData()
-    if (data[rid]?.users?.[userId]) {
-      data[rid].users[userId].isOnline = false
-      saveMockData(data)
-    }
+    if (data[rid]?.users?.[userId]) { data[rid].users[userId].isOnline = false; saveMockData(data) }
   }
 
   const updateSessionState = async (rid: string, state: RoomSession['state']): Promise<void> => {
     const data = getMockData()
-    if (data[rid]) {
-      data[rid].state = state
-      saveMockData(data)
-    }
+    if (data[rid]) { data[rid].state = state; saveMockData(data) }
   }
 
   const updateCountdown = async (rid: string, countdown: CountdownState): Promise<void> => {
     const data = getMockData()
-    if (data[rid]) {
-      data[rid].countdown = countdown
-      saveMockData(data)
-    }
+    if (data[rid]) { data[rid].countdown = countdown; saveMockData(data) }
   }
 
   const addPhoto = async (rid: string, photo: CapturedPhoto): Promise<void> => {
@@ -120,83 +92,43 @@ function useLocalMockRoom(roomId: string | undefined) {
 
   const updateFrame = async (rid: string, frameId: string): Promise<void> => {
     const data = getMockData()
-    if (data[rid]) {
-      data[rid].frameId = frameId
-      saveMockData(data)
-    }
+    if (data[rid]) { data[rid].frameId = frameId; saveMockData(data) }
   }
 
-  const subscribeToRoom = (
-    rid: string,
-    callback: (session: RoomSession | null) => void
-  ): (() => void) => {
+  const subscribeToRoom = (rid: string, callback: (session: RoomSession | null) => void) => {
     const handler = () => {
-      const data = getMockData()
-      const room = data[rid]
+      const data = getMockData(); const room = data[rid]
       if (room) {
         const photosObj = room.photos || {}
-        const photos: CapturedPhoto[] = (Object.values(photosObj) as CapturedPhoto[])
-          .sort((a, b) => a.capturedAt - b.capturedAt)
+        const photos = (Object.values(photosObj) as CapturedPhoto[]).sort((a, b) => a.capturedAt - b.capturedAt)
         callback({ ...room, photos } as RoomSession)
-      } else {
-        callback(null)
-      }
+      } else callback(null)
     }
-    
-    window.addEventListener('storage', handler)
-    window.addEventListener('storage_mock', handler) // Same-tab fallback
-    handler() // initial load
-    
-    const unsub = () => {
-      window.removeEventListener('storage', handler)
-      window.removeEventListener('storage_mock', handler)
-    }
-    listenersRef.current.push(unsub)
-    return unsub
-  }
-
-  const subscribeToUsers = (
-    rid: string,
-    callback: (users: RoomUser[]) => void
-  ): (() => void) => {
-    const handler = () => {
-      const data = getMockData()
-      const room = data[rid]
-      if (room?.users) {
-        callback(Object.values(room.users))
-      } else {
-        callback([])
-      }
-    }
-    
-    window.addEventListener('storage', handler)
-    window.addEventListener('storage_mock', handler)
+    window.addEventListener('storage', handler); window.addEventListener('storage_mock', handler)
     handler()
-    
-    const unsub = () => {
-      window.removeEventListener('storage', handler)
-      window.removeEventListener('storage_mock', handler)
-    }
+    const unsub = () => { window.removeEventListener('storage', handler); window.removeEventListener('storage_mock', handler) }
     listenersRef.current.push(unsub)
     return unsub
   }
 
-  return {
-    createRoom,
-    joinRoom,
-    leaveRoom,
-    updateSessionState,
-    updateCountdown,
-    addPhoto,
-    updateFrame,
-    subscribeToRoom,
-    subscribeToUsers,
-    cleanup,
+  const subscribeToUsers = (rid: string, callback: (users: RoomUser[]) => void) => {
+    const handler = () => {
+      const data = getMockData(); const room = data[rid]
+      if (room?.users) callback(Object.values(room.users))
+      else callback([])
+    }
+    window.addEventListener('storage', handler); window.addEventListener('storage_mock', handler)
+    handler()
+    const unsub = () => { window.removeEventListener('storage', handler); window.removeEventListener('storage_mock', handler) }
+    listenersRef.current.push(unsub)
+    return unsub
   }
+
+  return { createRoom, joinRoom, leaveRoom, updateSessionState, updateCountdown, addPhoto, updateFrame, subscribeToRoom, subscribeToUsers, cleanup }
 }
 
-// --- Real Firebase Hook (Original) ---
-function useRealFirebaseRoom(roomId: string | undefined) {
+// --- FIRESTORE HOOK ---
+function useFirestoreRoom(roomId: string | undefined) {
   const listenersRef = useRef<(() => void)[]>([])
 
   const cleanup = useCallback(() => {
@@ -209,71 +141,83 @@ function useRealFirebaseRoom(roomId: string | undefined) {
   }, [roomId, cleanup])
 
   const createRoom = async (rid: string, hostUser: RoomUser): Promise<void> => {
-    const roomRef = ref(database, `rooms/${rid}`)
-    const session: RoomSession = {
+    const roomRef = doc(firestore, 'rooms', rid)
+    const sessionDoc = {
       id: rid,
       hostId: hostUser.id,
       state: 'waiting',
       countdown: { isActive: false, count: 0, photoIndex: 0 },
-      photos: [],
+      photos: {},
       frameId: 'classic-pink',
       createdAt: Date.now(),
       selectedPhotoCount: 4,
+      users: { [hostUser.id]: { ...hostUser, isOnline: true } }
     }
-    await set(roomRef, session)
-    await joinRoomAsUser(rid, hostUser)
+    await setDoc(roomRef, sessionDoc)
+
+    // Mark offline on window close conceptually 
+    const handleUnload = () => { leaveRoom(rid, hostUser.id) }
+    window.addEventListener('unload', handleUnload)
+    listenersRef.current.push(() => window.removeEventListener('unload', handleUnload))
+  }
+
+  const joinRoomAsUser = async (rid: string, user: RoomUser): Promise<void> => {
+    const roomRef = doc(firestore, 'rooms', rid)
+    await setDoc(roomRef, {
+      users: { [user.id]: { ...user, isOnline: true, joinedAt: Date.now() } }
+    }, { merge: true })
+
+    const handleUnload = () => { leaveRoom(rid, user.id) }
+    window.addEventListener('unload', handleUnload)
+    listenersRef.current.push(() => window.removeEventListener('unload', handleUnload))
   }
 
   const joinRoom = async (rid: string, user: RoomUser): Promise<boolean> => {
-    const roomRef = ref(database, `rooms/${rid}`)
-    const snapshot = await get(roomRef)
+    const roomRef = doc(firestore, 'rooms', rid)
+    const snapshot = await getDoc(roomRef)
     if (!snapshot.exists()) return false
+    
     await joinRoomAsUser(rid, user)
     return true
   }
 
-  const joinRoomAsUser = async (rid: string, user: RoomUser): Promise<void> => {
-    const userRef = ref(database, `rooms/${rid}/users/${user.id}`)
-    const userWithOnline: RoomUser = { ...user, isOnline: true, joinedAt: Date.now() }
-    await set(userRef, userWithOnline)
-    const disconnectRef = onDisconnect(userRef)
-    await disconnectRef.update({ isOnline: false })
-  }
-
   const leaveRoom = async (rid: string, userId: string): Promise<void> => {
-    const userRef = ref(database, `rooms/${rid}/users/${userId}`)
-    await update(userRef, { isOnline: false })
+    const roomRef = doc(firestore, 'rooms', rid)
+    await setDoc(roomRef, { users: { [userId]: { isOnline: false } } }, { merge: true })
   }
 
   const updateSessionState = async (rid: string, state: RoomSession['state']): Promise<void> => {
-    await update(ref(database, `rooms/${rid}`), { state })
+    const roomRef = doc(firestore, 'rooms', rid)
+    await setDoc(roomRef, { state }, { merge: true })
   }
 
   const updateCountdown = async (rid: string, countdown: CountdownState): Promise<void> => {
-    await update(ref(database, `rooms/${rid}`), { countdown })
+    const roomRef = doc(firestore, 'rooms', rid)
+    await setDoc(roomRef, { countdown }, { merge: true })
   }
 
   const addPhoto = async (rid: string, photo: CapturedPhoto): Promise<void> => {
-    const photosRef = ref(database, `rooms/${rid}/photos/${photo.id}`)
-    await set(photosRef, photo)
+    const roomRef = doc(firestore, 'rooms', rid)
+    await setDoc(roomRef, { photos: { [photo.id]: photo } }, { merge: true })
   }
 
   const updateFrame = async (rid: string, frameId: string): Promise<void> => {
-    await update(ref(database, `rooms/${rid}`), { frameId })
+    const roomRef = doc(firestore, 'rooms', rid)
+    await setDoc(roomRef, { frameId }, { merge: true })
   }
 
   const subscribeToRoom = (
     rid: string,
     callback: (session: RoomSession | null) => void
   ): (() => void) => {
-    const roomRef = ref(database, `rooms/${rid}`)
-    const unsub = onValue(roomRef, (snapshot) => {
+    const roomRef = doc(firestore, 'rooms', rid)
+    const unsub = onSnapshot(roomRef, (snapshot) => {
       if (snapshot.exists()) {
-        const data = snapshot.val()
+        const data = snapshot.data()
         const photosObj = data.photos || {}
         const photos: CapturedPhoto[] = (Object.values(photosObj) as CapturedPhoto[])
           .sort((a, b) => a.capturedAt - b.capturedAt)
-        callback({ ...data, photos } as RoomSession)
+        callback({ ...data, photos, users: undefined } as any) // format it to pure arrays as expected by UI
       } else {
         callback(null)
       }
@@ -286,10 +230,11 @@ function useRealFirebaseRoom(roomId: string | undefined) {
     rid: string,
     callback: (users: RoomUser[]) => void
   ): (() => void) => {
-    const usersRef = ref(database, `rooms/${rid}/users`)
-    const unsub = onValue(usersRef, (snapshot) => {
+    const roomRef = doc(firestore, 'rooms', rid)
+    const unsub = onSnapshot(roomRef, (snapshot) => {
       if (snapshot.exists()) {
-        const usersObj = snapshot.val()
+        const data = snapshot.data()
+        const usersObj = data.users || {}
         const users: RoomUser[] = Object.values(usersObj)
         callback(users)
       } else {
