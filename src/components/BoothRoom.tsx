@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import Webcam from 'react-webcam'
 import { useRoomSession } from '../hooks/useRoomSession'
+import { useWebRTC } from '../hooks/useWebRTC'
 import { WebcamFeed } from './WebcamFeed'
 import { UsersOnline } from './UsersOnline'
 import { FrameSelector } from './FrameSelector'
@@ -23,6 +24,9 @@ export const BoothRoom: React.FC<BoothRoomProps> = ({ roomId, role }) => {
   const [copied, setCopied] = React.useState(false)
   const [showQR, setShowQR] = React.useState(false)
   const hasCapturedRef = useRef<Set<number>>(new Set())
+  const [localStream, setLocalStream] = React.useState<MediaStream | null>(null)
+
+  const { remoteStream } = useWebRTC(roomId, role, localStream)
 
   const {
     session,
@@ -124,6 +128,8 @@ export const BoothRoom: React.FC<BoothRoomProps> = ({ roomId, role }) => {
           <div className="flex flex-col gap-4">
             <WebcamFeed
               webcamRef={webcamRef}
+              remoteStream={remoteStream}
+              onReady={(stream) => setLocalStream(stream)}
               showFlash={showFlash}
               isCapturing={isCapturing}
               countdownCount={countdownCount}
