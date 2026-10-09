@@ -27,8 +27,10 @@ const HomePage: React.FC = () => {
       }
       await firebaseRoom.createRoom(newRoomId, hostUser)
       navigate(`/booth/${newRoomId}?role=host`)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to create room:', err)
+      alert(`Gagal membuat room. Error: ${err.message || err.toString()}`)
+    } finally {
       setIsCreating(false)
     }
   }
@@ -54,10 +56,13 @@ const HomePage: React.FC = () => {
         navigate(`/booth/${code}?role=guest`)
       } else {
         setJoinError('Room not found. Check the code and try again.')
-        setIsJoining(false)
       }
-    } catch (err) {
-      setJoinError('Failed to join room. Please try again.')
+    } catch (err: any) {
+      console.error('Failed to join room:', err)
+      const errorMsg = err.message || err.toString()
+      setJoinError(`Failed to join room: ${errorMsg}`)
+      alert(`Gagal Join: ${errorMsg}`)
+    } finally {
       setIsJoining(false)
     }
   }
