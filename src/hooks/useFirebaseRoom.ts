@@ -14,9 +14,7 @@ function getMockData() { try { return JSON.parse(localStorage.getItem(MOCK_KEY) 
 function saveMockData(data: any) { localStorage.setItem(MOCK_KEY, JSON.stringify(data)); window.dispatchEvent(new Event('storage_mock')) }
 
 export function useFirebaseRoom(roomId: string | undefined) {
-  if (isMock) {
-    return useLocalMockRoom(roomId)
-  }
+  // Hapus pengecekan isMock agar selalu menggunakan Firebase
   return useFirestoreRoom(roomId)
 }
 

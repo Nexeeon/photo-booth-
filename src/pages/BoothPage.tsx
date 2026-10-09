@@ -28,12 +28,18 @@ const BoothPage: React.FC = () => {
 
     // Guest needs to register their presence
     if (role === 'guest') {
-      firebaseRoom.joinRoom(roomId, user).then(success => {
-        if (!success) {
-          alert('Room not found!')
+      firebaseRoom.joinRoom(roomId, user)
+        .then(success => {
+          if (!success) {
+            alert('Room not found! Pastikan Host telah berada di dalam room dan memberikan kode/link yang benar.')
+            navigate('/')
+          }
+        })
+        .catch(err => {
+          console.error("Failed to join room:", err);
+          alert('Gagal bergabung ke Firebase. Periksa Security Rules Firestore atau konfigurasi API Key. Lihat console.')
           navigate('/')
-        }
-      })
+        })
     }
   }, [roomId, role])
 
