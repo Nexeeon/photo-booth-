@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import Webcam from 'react-webcam'
 import { useRoomSession } from '../hooks/useRoomSession'
 import { useWebRTC } from '../hooks/useWebRTC'
@@ -7,6 +7,7 @@ import { UsersOnline } from './UsersOnline'
 import { FrameSelector } from './FrameSelector'
 import { PhotoStripPreview } from './PhotoStripPreview'
 import { Logo } from './Logo'
+import { Play, Share2, Copy, Check, Loader2 } from 'lucide-react'
 import { PHOTO_COUNT } from '../utils/frames'
 import type { UserRole } from '../types'
 import { useNavigate } from 'react-router-dom'
@@ -20,10 +21,10 @@ interface BoothRoomProps {
 export const BoothRoom: React.FC<BoothRoomProps> = ({ roomId, role }) => {
   const webcamRef = useRef<Webcam>(null)
   const navigate = useNavigate()
-  const [copied, setCopied] = React.useState(false)
-  const [showQR, setShowQR] = React.useState(false)
+  const [copied, setCopied] = useState(false)
+  const [showQR, setShowQR] = useState(false)
   const hasCapturedRef = useRef<Set<number>>(new Set())
-  const [localStream, setLocalStream] = React.useState<MediaStream | null>(null)
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
 
   const { remoteStream } = useWebRTC(roomId, role, localStream)
 
@@ -36,10 +37,13 @@ export const BoothRoom: React.FC<BoothRoomProps> = ({ roomId, role }) => {
     changeFrame,
     sessionState,
     countdownCount,
+    isCapturing,
     showFlash,
   } = useRoomSession({ roomId, role })
 
-  const roomUrl = typeof window !== 'undefined' ? `${window.location.origin}/booth/${roomId}?role=guest` : ''
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+
+  const roomUrl = origin ? `${origin}/booth/${roomId}?role=guest` : ''
   const photoIndex = session?.countdown?.photoIndex ?? 0
   const onlineUsers = users.filter((u) => u.isOnline)
 
@@ -59,24 +63,25 @@ export const BoothRoom: React.FC<BoothRoomProps> = ({ roomId, role }) => {
   }, [sessionState, session?.photos, navigate, roomId])
 
   const handleCopyLink = () => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      void navigator.clipboard.writeText(roomUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
+    if (!roomUrl) return
+    void navigator.clipboard.writeText(roomUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
+
+  const handleStreamReady = useCallback((stream: MediaStream) => {
+    setLocalStream(stream)
+  }, [])
 
   const canStart = role === 'host' && onlineUsers.length >= 1 && sessionState === 'waiting'
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6 text-center font-mono-retro">
-        <div className="border-flat p-8 bg-charcoal max-w-sm w-full">
-          <p className="text-sm uppercase tracking-widest text-white mb-2 animate-pulse">
-            CONNECTING APPARATUS...
-          </p>
-          <p className="text-[10px] text-neutral-400 uppercase">
-            CALIBRATING ROOM CHASSIS #{roomId}
+      <div className="min-h-screen bg-white text-black flex items-center justify-center font-editorial-sans">
+        <div className="flex flex-col items-center gap-4 border border-black p-10 bg-white">
+          <Loader2 size={32} className="text-black animate-spin" />
+          <p className="font-editorial-mono text-xs uppercase tracking-widest text-neutral-600">
+            Connecting to Booth Room...
           </p>
         </div>
       </div>
@@ -84,116 +89,111 @@ export const BoothRoom: React.FC<BoothRoomProps> = ({ roomId, role }) => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col font-sans-clean selection:bg-white selection:text-black">
-      {/* Editorial Top Navigation */}
-      <header className="border-b border-neutral-800 px-6 py-4 flex items-center justify-between bg-black">
+    <div className="min-h-screen bg-white text-black flex flex-col font-editorial-sans">
+      {/* Header */}
+      <header className="border-b border-black px-6 py-4 flex items-center justify-between bg-white">
         <Logo />
         <div className="flex items-center gap-4">
           <UsersOnline users={users} />
           <button
-            type="button"
             onClick={() => setShowQR(!showQR)}
-            className="btn-flat-black text-xs !py-2 !px-3"
+            className="btn-noir-secondary !py-2 !px-4 text-xs flex items-center gap-2"
           >
-            {showQR ? 'HIDE INVITE' : 'SHARE LINK'}
+            <Share2 size={13} />
+            <span>Invite</span>
           </button>
         </div>
       </header>
 
-      {/* QR / Invite Accordion */}
+      {/* QR / Invite panel */}
       {showQR && (
-        <div className="border-b border-white bg-charcoal px-6 py-5">
-          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center gap-6">
-            <div className="p-3 bg-white border-2 border-black shrink-0">
-              <QRCode value={roomUrl} size={100} fgColor="#000000" bgColor="#FFFFFF" />
+        <div className="border-b border-black bg-neutral-50 px-6 py-6">
+          <div className="max-w-lg mx-auto flex flex-col sm:flex-row items-center gap-6 border border-black p-6 bg-white">
+            <div className="shrink-0 bg-white p-2 border border-black">
+              {roomUrl && <QRCode value={roomUrl} size={100} />}
             </div>
-            <div className="flex-1 font-mono-retro">
-              <span className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1">
-                SESSION TELETYPE CODE:
+            <div className="flex-1 text-center sm:text-left">
+              <span className="font-editorial-mono text-[10px] text-neutral-500 uppercase tracking-widest block mb-1">
+                SESSION CODE
               </span>
-              <p className="font-serif-classic text-3xl font-black text-white tracking-[0.2em] mb-2">
+              <div className="font-editorial-serif text-3xl font-black tracking-widest text-black mb-2">
                 {roomId}
-              </p>
-              <p className="text-[11px] text-neutral-300 break-all mb-3 border-l-2 border-white pl-2">
+              </div>
+              <p className="font-editorial-mono text-[11px] text-neutral-600 mb-4 break-all">
                 {roomUrl}
               </p>
               <button
-                type="button"
                 onClick={handleCopyLink}
-                className="btn-flat-white text-[10px] !py-1.5 !px-4"
+                className="btn-noir-primary !py-2 !px-4 text-xs inline-flex items-center gap-2"
               >
-                {copied ? '[COPIED TO CLIPBOARD]' : 'COPY DIRECT URL'}
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {copied ? 'Copied to Clipboard' : 'Copy Invitation Link'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Studio Console */}
-      <main className="flex-1 px-4 py-8 max-w-7xl mx-auto w-full">
-        {/* Module Header Strip */}
-        <div className="flex items-center justify-between pb-3 mb-6 border-b border-neutral-800 font-mono-retro text-xs text-neutral-400">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 bg-white" />
-            <span className="uppercase tracking-widest text-white">YOUR PHOTO BOOTH CONSOLE</span>
-          </div>
-          <span className="uppercase tracking-wider">ROOM: #{roomId}</span>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
-          {/* Left: Camera Feed & Controller */}
+      {/* Main content */}
+      <main className="flex-1 px-4 sm:px-6 py-8 max-w-7xl mx-auto w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8 h-full">
+          {/* Left: Camera */}
           <div className="flex flex-col gap-6">
             <WebcamFeed
               webcamRef={webcamRef}
               remoteStream={remoteStream}
+              onReady={handleStreamReady}
               showFlash={showFlash}
+              isCapturing={isCapturing}
               countdownCount={countdownCount}
               isCountdownActive={sessionState === 'countdown' && session?.countdown?.isActive === true}
-              onReady={(stream) => setLocalStream(stream)}
             />
 
-            {/* Status Bar */}
-            <div className="border-flat px-4 py-3 flex items-center justify-between bg-charcoal font-mono-retro text-xs">
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 inline-block ${sessionState === 'capturing' ? 'bg-white animate-ping' : 'bg-neutral-300'}`} />
-                <span className="uppercase tracking-wider font-bold text-white">
+            {/* Status bar */}
+            <div className="flex items-center justify-between border border-black p-4 bg-white">
+              <div className="flex items-center gap-3">
+                <StatusDot state={sessionState} />
+                <span className="font-editorial-mono text-xs uppercase tracking-wider text-black font-semibold">
                   {getStatusLabel(sessionState, role)}
                 </span>
               </div>
-              <div className="text-neutral-400 uppercase text-[11px]">
-                CAPTURES: {session?.photos?.length ?? 0} / {PHOTO_COUNT}
+              <div className="font-editorial-mono text-xs text-neutral-500 uppercase">
+                CAPTURED: {session?.photos?.length ?? 0} / {PHOTO_COUNT}
               </div>
             </div>
 
-            {/* Frame Selector */}
+            {/* Frame selector */}
             <FrameSelector
               selectedFrameId={session?.frameId ?? 'classic-white'}
               onSelect={changeFrame}
               disabled={sessionState !== 'waiting'}
             />
 
-            {/* Host Shutter Trigger */}
+            {/* Start button (host only) */}
             {role === 'host' && (
               <button
-                type="button"
-                onClick={startSession}
+                onClick={() => void startSession()}
                 disabled={!canStart}
-                className="btn-flat-white !py-4 text-sm w-full tracking-[0.2em]"
+                className={`
+                  btn-noir-primary flex items-center justify-center gap-3 text-sm py-4
+                  ${!canStart ? 'opacity-40 cursor-not-allowed' : ''}
+                `}
               >
-                {sessionState === 'waiting'
-                  ? 'START PHOTO SESSION (EXPOSE 4 FRAMES)'
-                  : 'SESSION RUNNING...'}
+                <Play size={16} fill="currentColor" />
+                {sessionState === 'waiting' ? 'START PHOTO SESSION (4 SHOTS)' : 'SESSION RUNNING...'}
               </button>
             )}
 
             {role === 'guest' && sessionState === 'waiting' && (
-              <div className="border border-neutral-800 p-4 bg-charcoal text-center font-mono-retro text-xs text-neutral-400 uppercase tracking-widest">
-                [AWAITING HOST TO RELEASE SHUTTER]
+              <div className="border border-black p-6 text-center bg-neutral-50">
+                <p className="font-editorial-mono text-xs text-neutral-600 uppercase tracking-widest">
+                  Waiting for the host to initiate the shutter sequence...
+                </p>
               </div>
             )}
           </div>
 
-          {/* Right: Strip Contact Sheet Preview */}
+          {/* Right: Photo strip preview */}
           <div className="flex flex-col gap-4">
             <PhotoStripPreview
               photos={session?.photos ?? []}
@@ -208,19 +208,38 @@ export const BoothRoom: React.FC<BoothRoomProps> = ({ roomId, role }) => {
   )
 }
 
+function StatusDot({ state }: { state: string }) {
+  const isPulse = state === 'countdown' || state === 'capturing'
+  return (
+    <span
+      className={`w-2.5 h-2.5 border border-black inline-block ${
+        state === 'waiting'
+          ? 'bg-neutral-300'
+          : state === 'countdown'
+          ? 'bg-black animate-pulse'
+          : state === 'capturing'
+          ? 'bg-black animate-ping'
+          : 'bg-black'
+      } ${isPulse ? 'ring-2 ring-black/20' : ''}`}
+    />
+  )
+}
+
 function getStatusLabel(state: string, role: UserRole): string {
   switch (state) {
     case 'waiting':
-      return role === 'host' ? 'READY — TRIGGER SHUTTER' : 'WAITING FOR HOST'
+      return role === 'host' ? 'READY — PRESS START TO SHOOT' : 'CONNECTED — AWAITING HOST TRIGGER'
     case 'countdown':
       return 'COUNTDOWN IN PROGRESS...'
     case 'capturing':
-      return 'HOLD POSE — EXPOSING!'
+      return 'HOLD POSE — EXPOSING SHUTTER...'
     case 'preview':
-      return 'DEVELOPING PHOTO STRIP...'
+      return 'WRAPPING UP SESSION...'
     case 'done':
-      return 'SESSION COMPLETE'
+      return 'DEVELOPING FINAL STRIP...'
     default:
       return state.toUpperCase()
   }
 }
+
+export default BoothRoom

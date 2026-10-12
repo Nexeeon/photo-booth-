@@ -1,6 +1,7 @@
 import React from 'react'
 import { FRAME_TEMPLATES } from '../utils/frames'
 import type { FrameTemplate } from '../types'
+import { Check } from 'lucide-react'
 
 interface FrameSelectorProps {
   selectedFrameId: string
@@ -14,16 +15,16 @@ export const FrameSelector: React.FC<FrameSelectorProps> = ({
   disabled = false,
 }) => {
   return (
-    <div className="border-flat p-4 bg-black">
-      <div className="flex items-center justify-between pb-3 mb-3 border-b border-neutral-800">
-        <h3 className="font-mono-retro text-xs font-bold uppercase tracking-widest text-neutral-300">
-          SELECT CHASSIS FRAME
+    <div className="border border-black p-4 bg-white">
+      <div className="flex items-center justify-between pb-2 mb-3 border-b border-black">
+        <h3 className="text-xs font-editorial-mono font-bold uppercase tracking-wider text-black">
+          SELECT FRAME PALETTE
         </h3>
-        <span className="font-mono-retro text-[10px] text-neutral-500 uppercase">
-          [MONO TONAL CURVES]
+        <span className="font-editorial-mono text-[10px] text-neutral-500 uppercase">
+          4 EDITIONS
         </span>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {FRAME_TEMPLATES.map((frame) => (
           <FrameButton
             key={frame.id}
@@ -47,41 +48,32 @@ interface FrameButtonProps {
 
 const FrameButton: React.FC<FrameButtonProps> = ({ frame, isSelected, onSelect, disabled }) => (
   <button
-    type="button"
     onClick={() => !disabled && onSelect(frame.id)}
     disabled={disabled}
     className={`
-      flex flex-col items-center gap-2 p-3 transition-colors duration-150 text-left
-      ${isSelected ? 'bg-white text-black border-2 border-white' : 'bg-black text-white border border-neutral-700 hover:border-white'}
-      ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
+      relative flex flex-col items-center gap-1.5 p-2 border transition-all text-left
+      ${isSelected ? 'border-2 border-black bg-neutral-100 font-bold' : 'border-neutral-300 hover:border-black bg-white'}
+      ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
     `}
+    title={frame.label}
   >
+    {/* Color swatch */}
     <div
-      className="w-full h-12 flex flex-col justify-between p-1.5"
-      style={{
-        backgroundColor: frame.bgColor,
-        border: frame.borderStyle,
-      }}
+      className="w-full h-10 border border-black relative overflow-hidden flex flex-col justify-between p-1"
+      style={{ backgroundColor: frame.bgColor }}
     >
-      <div className="flex justify-between items-center text-[8px] font-mono font-bold" style={{ color: frame.textColor }}>
-        <span>PY</span>
-        <span>4X</span>
+      <div className="flex justify-between items-center">
+        <span className="text-[7px] font-editorial-mono font-bold" style={{ color: frame.textColor }}>
+          PY
+        </span>
+        {isSelected && <Check size={10} style={{ color: frame.textColor }} />}
       </div>
-      <div className="flex gap-1 justify-center">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="w-2.5 h-3.5 border"
-            style={{
-              borderColor: frame.textColor,
-              backgroundColor: frame.color === '#000000' ? '#000000' : '#FFFFFF',
-            }}
-          />
-        ))}
-      </div>
+      <div className="h-0.5 w-full" style={{ backgroundColor: frame.textColor, opacity: 0.3 }} />
     </div>
-    <span className="font-mono-retro text-[10px] font-bold tracking-wider text-center uppercase">
+    <span className="text-[9px] font-editorial-mono uppercase text-black tracking-tight text-center truncate w-full">
       {frame.label}
     </span>
   </button>
 )
+
+export default FrameSelector

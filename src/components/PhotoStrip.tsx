@@ -3,6 +3,7 @@ import html2canvas from 'html2canvas'
 import { FRAME_TEMPLATES } from '../utils/frames'
 import { formatPhotoDate } from '../utils/helpers'
 import type { CapturedPhoto } from '../types'
+import { Download, Loader2 } from 'lucide-react'
 
 interface PhotoStripProps {
   photos: CapturedPhoto[]
@@ -18,6 +19,7 @@ export const PhotoStrip: React.FC<PhotoStripProps> = ({ photos, frameId, roomId 
   const frame = FRAME_TEMPLATES.find((f) => f.id === frameId) || FRAME_TEMPLATES[0]
 
   useEffect(() => {
+    // Pre-load all images
     const loadPromises = photos.map((p) => {
       return new Promise<void>((resolve) => {
         const img = new Image()
@@ -38,7 +40,7 @@ export const PhotoStrip: React.FC<PhotoStripProps> = ({ photos, frameId, roomId 
         scale: 2,
         useCORS: true,
         allowTaint: true,
-        backgroundColor: null,
+        backgroundColor: '#FFFFFF',
         logging: false,
       })
 
@@ -46,89 +48,101 @@ export const PhotoStrip: React.FC<PhotoStripProps> = ({ photos, frameId, roomId 
       link.download = `photo-yuk-${roomId}-${Date.now()}.png`
       link.href = canvas.toDataURL('image/png', 1.0)
       link.click()
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Download error:', err)
     } finally {
       setIsDownloading(false)
     }
   }
 
-  const isLightFrame = frame.bgColor === '#FFFFFF' || frame.bgColor === '#F4F4F4'
-
   return (
     <div className="flex flex-col items-center gap-6">
-      {/* 2D Flat Vintage Paper Strip Target */}
+      {/* Photo Strip Render Target */}
       <div
         ref={stripRef}
-        className="relative flex flex-col items-center"
+        className="relative border border-black bg-white"
         style={{
           backgroundColor: frame.bgColor,
-          color: frame.textColor,
-          width: '240px',
-          padding: '24px 16px 20px',
-          border: isLightFrame ? '2px solid #000000' : '2px solid #FFFFFF',
+          padding: '20px 16px',
+          width: '260px',
         }}
       >
-        {/* Header Branding Inscription */}
-        <div className="w-full text-center pb-3 mb-3 border-b" style={{ borderColor: isLightFrame ? '#000000' : '#333333' }}>
-          <p className="font-serif-classic font-bold text-sm tracking-[0.25em] uppercase">
-            PHOTO YUK
+        {/* Top Header */}
+        <div className="text-center mb-4 pb-2 border-b border-black/20">
+          <p
+            className="font-editorial-serif font-black text-sm tracking-widest uppercase"
+            style={{ color: frame.textColor }}
+          >
+            Photo Yuk
           </p>
-          <p className="font-mono-retro text-[8px] tracking-[0.2em] uppercase opacity-75 mt-0.5">
-            TWO PLACES • ONE STRIP
+          <p
+            className="font-editorial-sans text-[8px] tracking-[0.25em] uppercase opacity-60"
+            style={{ color: frame.textColor }}
+          >
+            Two Places • One Strip
           </p>
         </div>
 
-        {/* 4 Multi-frame Exposures */}
-        <div className="w-full flex flex-col gap-2.5">
+        {/* Photos */}
+        <div className="flex flex-col gap-2.5">
           {photos.map((photo, idx) => (
             <div
               key={photo.id}
-              className="relative overflow-hidden"
+              className="relative overflow-hidden bg-neutral-200 border border-black"
               style={{
-                border: isLightFrame ? '1px solid #000000' : '1px solid #444444',
                 aspectRatio: '4/3',
               }}
             >
               <img
                 src={photo.dataUrl}
-                alt={`Frame ${idx + 1}`}
+                alt={`Photo ${idx + 1}`}
                 className="w-full h-full object-cover grayscale contrast-125"
                 crossOrigin="anonymous"
               />
-              <div
-                className="absolute bottom-1 right-1 px-1 py-0.2 font-mono-retro text-[8px] uppercase tracking-wider"
-                style={{
-                  backgroundColor: '#000000',
-                  color: '#FFFFFF',
-                }}
-              >
-                0{idx + 1}A
-              </div>
+              <span className="absolute bottom-1 right-1 font-editorial-mono text-[8px] bg-black text-white px-1 py-0.2">
+                0{idx + 1}
+              </span>
             </div>
           ))}
         </div>
 
-        {/* Footer Editorial Metadata */}
-        <div className="w-full mt-4 pt-3 border-t text-center" style={{ borderColor: isLightFrame ? '#000000' : '#333333' }}>
-          <p className="font-mono-retro text-[8px] tracking-[0.18em] uppercase font-bold">
-            ROOM ID: #{roomId}
+        {/* Footer */}
+        <div className="mt-4 pt-3 border-t border-black/20 text-center">
+          <p
+            className="font-editorial-mono text-[9px] uppercase tracking-wider opacity-70"
+            style={{ color: frame.textColor }}
+          >
+            {formatPhotoDate()}
           </p>
-          <p className="font-mono-retro text-[7px] tracking-[0.15em] uppercase opacity-70 mt-0.5">
-            {formatPhotoDate()} • ARCHIVE NOIR
+          <p
+            className="font-editorial-mono text-[8px] tracking-widest uppercase mt-0.5 opacity-50"
+            style={{ color: frame.textColor }}
+          >
+            ARCHIVE NO. {roomId}
           </p>
         </div>
       </div>
 
-      {/* Flat Download Action */}
+      {/* Download button */}
       <button
-        type="button"
-        onClick={handleDownload}
+        onClick={() => void handleDownload()}
         disabled={!isReady || isDownloading}
-        className="btn-flat-white w-full max-w-[240px] text-center"
+        className="btn-noir-primary w-full text-xs"
       >
-        {isDownloading ? 'EXPORTING STRIP...' : 'DOWNLOAD PHOTO STRIP'}
+        {isDownloading ? (
+          <>
+            <Loader2 size={14} className="animate-spin" />
+            DEVELOPING ARCHIVAL FILE...
+          </>
+        ) : (
+          <>
+            <Download size={14} />
+            DOWNLOAD PHOTO STRIP (PNG)
+          </>
+        )}
       </button>
     </div>
   )
 }
+
+export default PhotoStrip

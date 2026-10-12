@@ -1,32 +1,34 @@
 import React from 'react'
 import type { RoomUser } from '../types'
+import { Users } from 'lucide-react'
 
 interface UsersOnlineProps {
   users: RoomUser[]
 }
 
 export const UsersOnline: React.FC<UsersOnlineProps> = ({ users }) => {
-  const onlineUsers = users.filter(u => u.isOnline)
+  const onlineUsers = users.filter((u) => u.isOnline)
 
   return (
-    <div className="border-flat px-4 py-2 flex items-center gap-3 bg-black font-mono-retro text-xs">
-      <div className="flex items-center gap-2">
-        <span className="w-2 h-2 bg-white inline-block animate-pulse" />
-        <span className="text-neutral-400 tracking-wider uppercase text-[10px]">OPERATORS:</span>
+    <div className="border border-black px-3 py-1.5 bg-white flex items-center gap-3">
+      <div className="flex items-center gap-1.5">
+        <Users size={14} className="text-black" />
+        <span className="font-editorial-mono text-[10px] uppercase font-bold text-black tracking-wider">
+          LIVE:
+        </span>
       </div>
-      <div className="w-px h-3 bg-neutral-700" />
-      <div className="flex items-center gap-3">
+      <div className="h-3 w-px bg-neutral-300" />
+      <div className="flex items-center gap-2">
         {onlineUsers.length === 0 ? (
-          <span className="text-neutral-500 uppercase text-[10px]">AWAITING LINK...</span>
+          <span className="font-editorial-mono text-[10px] text-neutral-400 uppercase">Awaiting guests...</span>
         ) : (
-          onlineUsers.map(user => (
-            <div key={user.id} className="flex items-center gap-1.5">
-              <span className="font-bold text-white uppercase tracking-wider text-[11px]">
-                {user.name}
-              </span>
+          onlineUsers.map((user) => (
+            <div key={user.id} className="flex items-center gap-1 font-editorial-mono text-[10px]">
+              <span className="w-1.5 h-1.5 bg-black" />
+              <span className="font-semibold text-black">{user.name}</span>
               {user.role === 'host' && (
-                <span className="text-[9px] px-1 py-0.5 border border-white/60 bg-white text-black font-bold uppercase">
-                  HOST
+                <span className="bg-black text-white text-[8px] px-1 py-0.2 uppercase tracking-widest font-bold">
+                  Host
                 </span>
               )}
             </div>
@@ -34,10 +36,12 @@ export const UsersOnline: React.FC<UsersOnlineProps> = ({ users }) => {
         )}
       </div>
       {onlineUsers.length === 1 && (
-        <span className="text-[10px] text-neutral-400 tracking-widest uppercase hidden sm:inline">
-          [WAITING FOR GUEST]
+        <span className="font-editorial-mono text-[9px] text-neutral-500 uppercase tracking-widest hidden sm:inline">
+          (Waiting for partner)
         </span>
       )}
     </div>
   )
 }
+
+export default UsersOnline

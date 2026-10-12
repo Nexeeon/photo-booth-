@@ -25,6 +25,7 @@ const BoothPage: React.FC = () => {
       isOnline: true,
     }
 
+    // Guest needs to register their presence
     if (role === 'guest') {
       firebaseRoom.joinRoom(roomId, user)
         .then((success) => {
@@ -43,10 +44,13 @@ const BoothPage: React.FC = () => {
 
   if (!roomId) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4">
-        <p className="font-mono-retro text-xs text-neutral-500 uppercase tracking-widest">
-          [INVALID SESSION IDENTIFIER]
-        </p>
+      <div className="min-h-screen bg-white text-black flex items-center justify-center p-6 font-editorial-sans">
+        <div className="border border-black p-8 text-center max-w-md">
+          <p className="font-editorial-serif text-xl font-bold uppercase mb-4">Invalid Room ID</p>
+          <button onClick={() => navigate('/')} className="btn-noir-primary">
+            Return to Home
+          </button>
+        </div>
       </div>
     )
   }

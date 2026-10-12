@@ -7,6 +7,7 @@ import { Logo } from '../components/Logo'
 import { UsersOnline } from '../components/UsersOnline'
 import type { RoomSession, RoomUser } from '../types'
 import { PHOTO_COUNT } from '../utils/frames'
+import { Home, Loader2, RefreshCw } from 'lucide-react'
 
 const ResultPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>()
@@ -38,13 +39,11 @@ const ResultPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6 text-center font-mono-retro">
-        <div className="border-flat p-8 bg-charcoal max-w-sm w-full">
-          <p className="text-sm uppercase tracking-widest text-white mb-2 animate-pulse">
-            DEVELOPING ARCHIVAL NEGATIVES...
-          </p>
-          <p className="text-[10px] text-neutral-400 uppercase">
-            PROCESSING ROOM #{roomId}
+      <div className="min-h-screen bg-white text-black flex items-center justify-center font-editorial-sans">
+        <div className="flex flex-col items-center gap-4 border border-black p-10 bg-white">
+          <Loader2 size={32} className="text-black animate-spin" />
+          <p className="font-editorial-mono text-xs uppercase tracking-widest text-neutral-600">
+            Developing your prints...
           </p>
         </div>
       </div>
@@ -53,13 +52,15 @@ const ResultPage: React.FC = () => {
 
   if (!session || !session.photos || session.photos.length === 0) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4 font-mono-retro">
-        <div className="text-center border-flat bg-charcoal p-8 max-w-md w-full">
-          <p className="text-xs uppercase tracking-widest text-neutral-400 mb-6">
-            NO NEGATIVE EXPOSURES RECORDED IN THIS SESSION.
+      <div className="min-h-screen bg-white text-black flex items-center justify-center p-6 font-editorial-sans">
+        <div className="text-center border border-black p-10 max-w-sm w-full">
+          <h2 className="font-editorial-serif text-2xl font-bold uppercase mb-2">No Photos Found</h2>
+          <p className="text-xs font-editorial-sans text-neutral-600 mb-6">
+            No capture session was recorded for this room.
           </p>
-          <Link to="/" className="btn-flat-white inline-block">
-            RETURN TO ARCHIVE HOME
+          <Link to="/" className="btn-noir-primary inline-flex items-center gap-2">
+            <Home size={14} />
+            Back to Home
           </Link>
         </div>
       </div>
@@ -67,92 +68,87 @@ const ResultPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col font-sans-clean selection:bg-white selection:text-black">
-      {/* Top Header */}
-      <header className="border-b border-neutral-800 px-6 py-4 flex items-center justify-between bg-black">
+    <div className="min-h-screen bg-white text-black flex flex-col font-editorial-sans">
+      {/* Header */}
+      <header className="border-b border-black px-6 py-4 flex items-center justify-between bg-white">
         <Logo />
         <UsersOnline users={users} />
       </header>
 
-      <main className="flex-1 px-4 py-12 max-w-7xl mx-auto w-full">
-        {/* Title Bar */}
-        <div className="text-center mb-12 border-b border-neutral-800 pb-8">
-          <span className="font-mono-retro text-xs tracking-[0.3em] uppercase text-neutral-400 block mb-2">
-            PROCESSED PROOFS // 4-FRAME CONTACT SHEET
+      <main className="flex-1 px-4 sm:px-6 py-10 max-w-7xl mx-auto w-full">
+        {/* Title */}
+        <div className="text-center mb-10 pb-6 border-b border-black">
+          <span className="font-editorial-mono text-xs uppercase tracking-[0.3em] text-neutral-500 block mb-2">
+            ARCHIVAL CONTACT SHEET // SESSION NO. {roomId}
           </span>
-          <h1 className="font-serif-classic text-4xl sm:text-5xl font-black tracking-wider uppercase mb-3">
-            YOUR PHOTO STRIP IS READY
+          <h1 className="font-editorial-serif text-4xl sm:text-5xl font-black uppercase tracking-tight text-black mb-3">
+            Your Photo Strip Is Ready
           </h1>
-          <p className="font-mono-retro text-xs text-neutral-400 uppercase tracking-widest">
-            TWO PLACES. ONE PHOTO STRIP. READY FOR EXPORT.
+          <p className="font-editorial-sans text-sm text-neutral-600 max-w-lg mx-auto">
+            High-contrast silver gelatin tone proofs ready for digital archival or physical print download.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-10 items-start max-w-5xl mx-auto">
-          {/* Individual Exposures Gallery */}
-          <div className="space-y-6">
-            <div className="border-flat p-6 bg-charcoal">
-              <div className="flex items-center justify-between pb-3 mb-4 border-b border-neutral-700 font-mono-retro text-xs">
-                <span className="font-bold uppercase tracking-widest text-neutral-300">
-                  INDIVIDUAL 35MM EXPOSURES
-                </span>
-                <span className="text-[10px] text-neutral-500 uppercase">
-                  MONOCHROME TONAL CURVES
-                </span>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-10 items-start max-w-5xl mx-auto">
+          {/* Large photo grid */}
+          <div>
+            <div className="border border-black p-6 mb-6 bg-white">
+              <div className="flex items-center justify-between pb-3 mb-4 border-b border-black text-xs font-editorial-mono text-neutral-500 uppercase">
+                <span>INDIVIDUAL CAPTURES</span>
+                <span>{session.photos.length} FRAMES</span>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 {session.photos.slice(0, PHOTO_COUNT).map((photo, idx) => (
-                  <div key={photo.id} className="relative aspect-video border border-neutral-700 overflow-hidden bg-black group">
+                  <div key={photo.id} className="relative aspect-[4/3] border border-black overflow-hidden bg-neutral-100 group">
                     <img
                       src={photo.dataUrl}
-                      alt={`Exposure ${idx + 1}`}
-                      className="w-full h-full object-cover grayscale contrast-125 group-hover:scale-105 transition-transform duration-300"
+                      alt={`Frame ${idx + 1}`}
+                      className="w-full h-full object-cover grayscale contrast-125"
                     />
-                    <div className="absolute bottom-1 left-1 bg-black px-1.5 py-0.5 border border-white text-white font-mono-retro text-[8px] uppercase tracking-widest">
-                      EXP 0{idx + 1}
+                    <div className="absolute bottom-2 left-2 bg-black text-white text-[9px] font-editorial-mono px-2 py-0.5 uppercase tracking-widest">
+                      FRAME 0{idx + 1}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Frame Selector */}
+            {/* Frame selector for result page too */}
             <FrameSelector
               selectedFrameId={session.frameId}
               onSelect={handleFrameChange}
             />
 
-            {/* Navigation Actions */}
-            <div className="grid grid-cols-2 gap-4 pt-2">
-              <Link to="/" className="btn-flat-black text-center !py-3">
-                ← HOME
+            {/* Actions */}
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              <Link to="/" className="btn-noir-secondary flex items-center justify-center gap-2 flex-1">
+                <Home size={14} />
+                Return to Home
               </Link>
               <Link
                 to={`/booth/${roomId}?role=host`}
-                className="btn-flat-white text-center !py-3"
+                className="btn-noir-primary flex items-center justify-center gap-2 flex-1"
               >
-                RETAKE SESSION →
+                <RefreshCw size={14} />
+                Retake Session
               </Link>
             </div>
           </div>
 
-          {/* Right Column: Physical Strip Render */}
-          <div className="border-flat p-6 bg-charcoal flex flex-col items-center">
-            <div className="w-full pb-3 mb-6 border-b border-neutral-700 text-center font-mono-retro">
-              <span className="text-xs font-bold uppercase tracking-widest text-neutral-300 block">
-                ARCHIVAL PRINT MOCKUP
+          {/* Photo strip download */}
+          <div>
+            <div className="border border-black p-6 bg-white flex flex-col items-center">
+              <span className="font-editorial-mono text-xs uppercase tracking-widest text-neutral-500 mb-6 block text-center">
+                ARCHIVAL PRINT PREVIEW
               </span>
-              <span className="text-[10px] text-neutral-500 uppercase tracking-wider">
-                VINTAGE 2D PAPER EDITION
-              </span>
+              {roomId && (
+                <PhotoStrip
+                  photos={session.photos.slice(0, PHOTO_COUNT)}
+                  frameId={session.frameId}
+                  roomId={roomId}
+                />
+              )}
             </div>
-            {roomId && (
-              <PhotoStrip
-                photos={session.photos.slice(0, PHOTO_COUNT)}
-                frameId={session.frameId}
-                roomId={roomId}
-              />
-            )}
           </div>
         </div>
       </main>
