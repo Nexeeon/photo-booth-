@@ -46,3 +46,8 @@ export interface RoomSession {
   createdAt: number
   selectedPhotoCount: number
 }
+
+export interface WebRTCRoomDocument {
+  offer?: RTCSessionDescriptionInit
+  answer?: RTCSessionDescriptionInit
+}

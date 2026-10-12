@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
 import { firestore } from '../lib/firebase'
 import type { RoomSession, RoomUser, CapturedPhoto, CountdownState } from '../types'
+import { sleep } from '../utils/helpers'
 
 export function useFirebaseRoom(roomId: string | undefined) {
   const listenersRef = useRef<(() => void)[]>([])
@@ -34,19 +35,27 @@ export function useFirebaseRoom(roomId: string | undefined) {
 
   const createRoom = useCallback(async (rid: string, hostUser: RoomUser): Promise<void> => {
     const roomRef = doc(firestore, 'rooms', rid)
-    const now = Date.now()
-    const sessionDoc = {
-      id: rid,
-      hostId: hostUser.id,
-      state: 'waiting' as const,
-      countdown: { isActive: false, count: 0, photoIndex: 0 },
-      photos: {},
-      frameId: 'classic-white',
-      createdAt: now,
-      selectedPhotoCount: 4,
-      users: { [hostUser.id]: { ...hostUser, isOnline: true } }
+    const existing = await getDoc(roomRef)
+    if (existing.exists()) {
+      // Room already exists; preserve state and update host presence
+      await setDoc(roomRef, {
+        users: { [hostUser.id]: { ...hostUser, isOnline: true } }
+      }, { merge: true })
+    } else {
+      const now = Date.now()
+      const sessionDoc = {
+        id: rid,
+        hostId: hostUser.id,
+        state: 'waiting' as const,
+        countdown: { isActive: false, count: 0, photoIndex: 0 },
+        photos: {},
+        frameId: 'classic-white',
+        createdAt: now,
+        selectedPhotoCount: 4,
+        users: { [hostUser.id]: { ...hostUser, isOnline: true } }
+      }
+      await setDoc(roomRef, sessionDoc)
     }
-    await setDoc(roomRef, sessionDoc)
 
     const handleUnload = () => { void leaveRoom(rid, hostUser.id) }
     window.addEventListener('unload', handleUnload)
@@ -55,7 +64,15 @@ export function useFirebaseRoom(roomId: string | undefined) {
 
   const joinRoom = useCallback(async (rid: string, user: RoomUser): Promise<boolean> => {
     const roomRef = doc(firestore, 'rooms', rid)
-    const snapshot = await getDoc(roomRef)
+    let snapshot = await getDoc(roomRef)
+    // Retry up to 3 seconds in case host is still creating the document
+    if (!snapshot.exists()) {
+      for (let i = 0; i < 3; i++) {
+        await sleep(1000)
+        snapshot = await getDoc(roomRef)
+        if (snapshot.exists()) break
+      }
+    }
     if (!snapshot.exists()) return false
     
     await joinRoomAsUser(rid, user)

@@ -25,8 +25,12 @@ const BoothPage: React.FC = () => {
       isOnline: true,
     }
 
-    // Guest needs to register their presence
-    if (role === 'guest') {
+    if (role === 'host') {
+      firebaseRoom.createRoom(roomId, user).catch((err: unknown) => {
+        console.error('Failed to create room in Firebase:', err)
+        alert('Gagal membuat room di Firebase. Pastikan Security Rules Firestore mengizinkan write.')
+      })
+    } else {
       firebaseRoom.joinRoom(roomId, user)
         .then((success) => {
           if (!success) {
