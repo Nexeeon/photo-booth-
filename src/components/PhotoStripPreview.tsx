@@ -1,6 +1,5 @@
 import React from 'react'
 import type { CapturedPhoto } from '../types'
-import { Camera } from 'lucide-react'
 
 interface PhotoStripPreviewProps {
   photos: CapturedPhoto[]
@@ -16,11 +15,17 @@ export const PhotoStripPreview: React.FC<PhotoStripPreviewProps> = ({
   isCapturing,
 }) => {
   return (
-    <div className="card-glass">
-      <h3 className="text-sm font-semibold text-white/50 uppercase tracking-widest mb-3">
-        Photo Strip Preview
-      </h3>
-      <div className="flex flex-col gap-2">
+    <div className="border-flat p-4 bg-black">
+      <div className="flex items-center justify-between pb-3 mb-3 border-b border-neutral-800">
+        <h3 className="font-mono-retro text-xs font-bold text-neutral-300 uppercase tracking-widest">
+          STRIP EXPOSURES
+        </h3>
+        <span className="font-mono-retro text-[10px] text-neutral-500">
+          {photos.length} / {totalSlots}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-3">
         {Array.from({ length: totalSlots }).map((_, idx) => {
           const photo = photos[idx]
           const isCurrent = idx === currentPhotoIndex && isCapturing
@@ -30,34 +35,34 @@ export const PhotoStripPreview: React.FC<PhotoStripPreviewProps> = ({
             <div
               key={idx}
               className={`
-                relative aspect-video rounded-xl overflow-hidden
-                transition-all duration-500
-                ${isCurrent ? 'ring-2 ring-pink-400 scale-[1.02]' : ''}
-                ${!isCaptured ? 'bg-white/5 border border-dashed border-white/10' : ''}
+                relative aspect-video overflow-hidden transition-colors
+                ${isCurrent ? 'border-2 border-white bg-charcoal' : 'border border-neutral-800'}
+                ${!isCaptured && !isCurrent ? 'bg-black border-dashed border-neutral-800' : ''}
               `}
             >
               {photo ? (
                 <img
                   src={photo.dataUrl}
-                  alt={`Photo ${idx + 1}`}
-                  className="w-full h-full object-cover"
+                  alt={`Exposure ${idx + 1}`}
+                  className="w-full h-full object-cover grayscale contrast-125"
                 />
               ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center">
                   {isCurrent ? (
-                    <div className="w-5 h-5 rounded-full border-2 border-pink-400 border-t-transparent animate-spin" />
+                    <span className="font-mono-retro text-xs font-bold text-white uppercase tracking-widest animate-pulse">
+                      EXPOSING #{idx + 1}...
+                    </span>
                   ) : (
-                    <>
-                      <Camera size={16} className="text-white/20" />
-                      <span className="text-[10px] text-white/20 font-medium">Photo {idx + 1}</span>
-                    </>
+                    <span className="font-mono-retro text-[10px] text-neutral-600 uppercase tracking-wider">
+                      FRAME 0{idx + 1} // BLANK
+                    </span>
                   )}
                 </div>
               )}
 
-              {/* Slot number badge */}
-              <div className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full glass flex items-center justify-center">
-                <span className="text-[9px] font-bold text-white/70">{idx + 1}</span>
+              {/* Frame index stamp */}
+              <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/90 border border-neutral-700 text-white font-mono-retro text-[9px] uppercase tracking-widest">
+                0{idx + 1}
               </div>
             </div>
           )

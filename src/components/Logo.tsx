@@ -1,20 +1,18 @@
 import React from 'react'
-import { Camera } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export const Logo: React.FC = () => (
-  <Link to="/" className="flex items-center gap-2 group">
-    <div className="relative">
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-        style={{ background: 'linear-gradient(135deg, #FF69B4, #9333EA)' }}>
-        <Camera size={18} className="text-white" />
-      </div>
-      <div className="absolute -inset-1 rounded-xl opacity-0 group-hover:opacity-60 transition-opacity duration-300"
-        style={{ background: 'linear-gradient(135deg, #FF69B4, #9333EA)', filter: 'blur(8px)', zIndex: -1 }} />
+  <Link to="/" className="flex items-center gap-3 group">
+    <div className="w-8 h-8 border-flat flex items-center justify-center bg-black group-hover:bg-white transition-colors duration-150">
+      <div className="w-3.5 h-3.5 bg-white group-hover:bg-black transition-colors duration-150" />
     </div>
-    <span className="font-bold text-xl tracking-tight">
-      <span className="gradient-text">Flash</span>
-      <span className="text-white/80">Booth</span>
-    </span>
+    <div className="flex flex-col">
+      <span className="font-serif-classic font-bold text-lg tracking-[0.2em] leading-none text-white">
+        PHOTO YUK
+      </span>
+      <span className="font-mono-retro text-[9px] tracking-[0.25em] text-neutral-400 mt-1 uppercase">
+        EST. 2026 // MONO ARCHIVE
+      </span>
+    </div>
   </Link>
 )

@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback, type RefObject } from 'react'
+import type Webcam from 'react-webcam'
 import { useFirebaseRoom } from './useFirebaseRoom'
 import { getOrCreateUserId, getOrCreateUserName, sleep } from '../utils/helpers'
 import { PHOTO_COUNT, COUNTDOWN_SECONDS, BETWEEN_PHOTO_DELAY } from '../utils/frames'
@@ -12,11 +13,11 @@ interface UseRoomSessionProps {
 interface UseRoomSessionReturn {
   session: RoomSession | null
   users: RoomUser[]
-  currentUser: RoomUser | null
+  currentUser: RoomUser
   isLoading: boolean
   error: string | null
   startSession: () => Promise<void>
-  capturePhoto: (webcamRef: React.RefObject<any>) => Promise<void>
+  capturePhoto: (webcamRef: RefObject<Webcam | null>) => Promise<void>
   changeFrame: (frameId: string) => Promise<void>
   sessionState: SessionState
   countdownCount: number
@@ -32,18 +33,15 @@ export function useRoomSession({ roomId, role }: UseRoomSessionProps): UseRoomSe
   const [showFlash, setShowFlash] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
 
-  const currentUserId = useRef(getOrCreateUserId())
-  const currentUserName = useRef(getOrCreateUserName())
-
-  const firebaseRoom = useFirebaseRoom(roomId)
-
-  const currentUser: RoomUser = {
-    id: currentUserId.current,
+  const [currentUser] = useState<RoomUser>(() => ({
+    id: getOrCreateUserId(),
     role,
-    name: currentUserName.current,
+    name: getOrCreateUserName(),
     joinedAt: Date.now(),
     isOnline: true,
-  }
+  }))
+
+  const firebaseRoom = useFirebaseRoom(roomId)
 
   // Subscribe to room data
   useEffect(() => {
@@ -62,10 +60,8 @@ export function useRoomSession({ roomId, role }: UseRoomSessionProps): UseRoomSe
       unsubRoom()
       unsubUsers()
     }
-  }, [roomId])
+  }, [roomId, firebaseRoom])
 
-  // Monitor countdown from Firebase → only HOST drives the timer
-  // The count is synced from Firebase, everyone reads it
   const sessionState: SessionState = session?.state || 'waiting'
   const countdownCount: number = session?.countdown?.count ?? 0
 
@@ -106,7 +102,7 @@ export function useRoomSession({ roomId, role }: UseRoomSessionProps): UseRoomSe
   }, [roomId, role, firebaseRoom])
 
   /** BOTH users: capture photo when state=capturing */
-  const capturePhoto = useCallback(async (webcamRef: React.RefObject<any>) => {
+  const capturePhoto = useCallback(async (webcamRef: RefObject<Webcam | null>) => {
     if (!webcamRef.current || !session) return
     if (isCapturing) return
 
@@ -115,15 +111,16 @@ export function useRoomSession({ roomId, role }: UseRoomSessionProps): UseRoomSe
     setTimeout(() => setShowFlash(false), 500)
 
     try {
-      const imageSrc: string = webcamRef.current.getScreenshot({ width: 1280, height: 720 })
+      const imageSrc = webcamRef.current.getScreenshot({ width: 1280, height: 720 })
       if (!imageSrc) return
 
-      const photoId = `photo_${Date.now()}_${currentUserId.current}`
+      const now = Date.now()
+      const photoId = `photo_${now}_${currentUser.id}`
       const photo: CapturedPhoto = {
         id: photoId,
         dataUrl: imageSrc,
-        capturedAt: Date.now(),
-        capturedBy: currentUserId.current,
+        capturedAt: now,
+        capturedBy: currentUser.id,
       }
 
       await firebaseRoom.addPhoto(roomId, photo)
@@ -133,7 +130,7 @@ export function useRoomSession({ roomId, role }: UseRoomSessionProps): UseRoomSe
     } finally {
       setIsCapturing(false)
     }
-  }, [roomId, session, isCapturing, firebaseRoom])
+  }, [roomId, session, isCapturing, firebaseRoom, currentUser.id])
 
   const changeFrame = useCallback(async (frameId: string) => {
     await firebaseRoom.updateFrame(roomId, frameId)

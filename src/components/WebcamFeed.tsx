@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useCallback } from 'react'
 import Webcam from 'react-webcam'
-import { VideoOff, RotateCcw, User } from 'lucide-react'
 
 interface WebcamFeedProps {
   webcamRef: React.RefObject<Webcam | null>
   remoteStream: MediaStream | null
   showFlash: boolean
-  isCapturing: boolean
   countdownCount: number
   isCountdownActive: boolean
   onReady?: (stream: MediaStream) => void
@@ -17,7 +15,6 @@ export const WebcamFeed: React.FC<WebcamFeedProps> = ({
   webcamRef,
   remoteStream,
   showFlash,
-  isCapturing,
   countdownCount,
   isCountdownActive,
   onReady,
@@ -33,7 +30,6 @@ export const WebcamFeed: React.FC<WebcamFeedProps> = ({
     }
   }, [remoteStream])
 
-  // Get stream from Webcam component on mount
   const handleUserMedia = useCallback((stream: MediaStream) => {
     setHasPermission(true)
     onReady?.(stream)
@@ -50,14 +46,14 @@ export const WebcamFeed: React.FC<WebcamFeedProps> = ({
   const isSplit = !!remoteStream
 
   return (
-    <div className="relative w-full aspect-video rounded-2xl overflow-hidden glass-strong flex ring-1 ring-white/10">
-      {/* Local Camera */}
-      <div className={`relative h-full transition-all duration-500 overflow-hidden ${isSplit ? 'w-1/2 border-r border-white/10' : 'w-full'}`}>
+    <div className="relative w-full aspect-video border-flat bg-black overflow-hidden flex">
+      {/* Local Feed */}
+      <div className={`relative h-full overflow-hidden ${isSplit ? 'w-1/2 border-r border-neutral-700' : 'w-full'}`}>
         {hasPermission !== false && (
           <Webcam
             ref={webcamRef}
-            audio={true} // Explicitly request audio for WebRTC, but we will mute local playback
-            muted={true} // Never hear yourself
+            audio={true}
+            muted={true}
             screenshotFormat="image/jpeg"
             screenshotQuality={0.92}
             videoConstraints={{
@@ -68,91 +64,100 @@ export const WebcamFeed: React.FC<WebcamFeedProps> = ({
             mirrored={mirrored}
             onUserMedia={handleUserMedia}
             onUserMediaError={handleUserMediaError}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover grayscale contrast-125 brightness-95"
           />
         )}
-        
+
         {hasPermission === false && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 p-4">
-            <VideoOff size={32} className="text-white/30" />
-            <p className="text-white/50 text-center text-xs">Camera access denied.</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-charcoal p-4 text-center">
+            <span className="font-mono-retro text-xs text-white uppercase tracking-widest">
+              [CAMERA ACCESS DENIED]
+            </span>
+            <p className="font-mono-retro text-[10px] text-neutral-400">
+              PLEASE ENABLE CAMERA PERMISSIONS IN BROWSER
+            </p>
           </div>
         )}
+
         {hasPermission === null && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80">
-            <div className="w-8 h-8 rounded-full border-2 border-transparent border-t-pink-400 animate-spin" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
+            <span className="font-mono-retro text-xs text-white uppercase tracking-widest animate-pulse">
+              INITIALIZING OPTICS...
+            </span>
           </div>
         )}
-        
-        <div className="absolute bottom-3 left-3 px-2 py-1 glass rounded-md flex items-center justify-center z-10">
-          <span className="text-[10px] font-bold text-white/90 uppercase tracking-widest drop-shadow-md">You</span>
+
+        {/* Local Feed Label Stamp */}
+        <div className="absolute bottom-2 left-2 bg-black px-2 py-0.5 border border-white text-white font-mono-retro text-[9px] uppercase tracking-widest z-10">
+          FEED 01 // LOCAL
         </div>
       </div>
 
-      {/* Remote Camera */}
+      {/* Remote Feed */}
       {isSplit && (
-        <div className="relative w-1/2 h-full overflow-hidden bg-[#0A0612]">
-          <video 
-            ref={remoteVideoRef} 
-            autoPlay 
-            playsInline 
-            className="w-full h-full object-cover" 
-            style={{ transform: 'scaleX(-1)' }} 
+        <div className="relative w-1/2 h-full overflow-hidden bg-charcoal">
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="w-full h-full object-cover grayscale contrast-125 brightness-95"
+            style={{ transform: 'scaleX(-1)' }}
           />
-          {/* We do NOT mute remote stream, so we can hear them! */}
-          <div className="absolute bottom-3 right-3 px-2 py-1 glass rounded-md flex items-center justify-center z-10">
-             <span className="text-[10px] font-bold text-white/90 uppercase tracking-widest drop-shadow-md">Friend</span>
+          <div className="absolute bottom-2 right-2 bg-black px-2 py-0.5 border border-white text-white font-mono-retro text-[9px] uppercase tracking-widest z-10">
+            FEED 02 // REMOTE GUEST
           </div>
         </div>
       )}
 
-      {/* Wait overlay */}
+      {/* Waiting Indicator if solo */}
       {!isSplit && (
-        <div className="absolute top-3 right-3 glass px-3 py-1.5 rounded-full flex items-center gap-2 animate-pulse z-10 border border-white/10">
-           <User size={12} className="text-white/50" />
-           <span className="text-[10px] uppercase font-bold text-white/70 tracking-wider">Waiting for friend...</span>
+        <div className="absolute top-2 right-2 bg-black px-2.5 py-1 border border-neutral-700 text-neutral-400 font-mono-retro text-[9px] uppercase tracking-wider z-10">
+          STATUS: WAITING FOR REMOTE GUEST
         </div>
       )}
 
-      {/* Global Overlays */}
+      {/* Countdown Overlay */}
       {isCountdownActive && countdownCount > 0 && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-20">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
           <div
             key={countdownCount}
-            className="countdown-number text-9xl font-black text-white drop-shadow-2xl"
-            style={{ textShadow: '0 0 40px rgba(255,105,180,0.8)' }}
+            className="font-serif-classic text-9xl font-black text-white tracking-widest border-4 border-white px-8 py-2 bg-black"
           >
             {countdownCount}
           </div>
         </div>
       )}
 
+      {/* Hard Flash Overlay */}
       {showFlash && (
-        <div className="absolute inset-0 bg-white animate-ping opacity-75 pointer-events-none z-30" />
+        <div className="flash-white" />
       )}
 
+      {/* Status Live Tag */}
       {hasPermission && !isCountdownActive && (
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 glass rounded-full px-3 py-1 z-10 border border-red-500/30">
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-xs font-bold text-white/90 tracking-wider drop-shadow-sm">LIVE</span>
+        <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black px-2 py-0.5 border border-white text-white font-mono-retro text-[9px] uppercase tracking-widest z-10">
+          <span className="w-1.5 h-1.5 bg-white inline-block animate-pulse" />
+          <span>SHUTTER LIVE</span>
         </div>
       )}
 
+      {/* Switch Camera if supported */}
       {hasPermission && !isSplit && (
         <button
+          type="button"
           onClick={toggleCamera}
-          className="absolute top-3 left-[88px] glass p-1.5 rounded-full text-white/60 hover:text-white transition-colors z-10 border border-white/10"
+          className="absolute top-2 left-[120px] bg-black hover:bg-white hover:text-black transition-colors px-2 py-0.5 border border-neutral-600 text-[9px] font-mono-retro uppercase tracking-wider text-white z-10"
         >
-          <RotateCcw size={14} />
+          FLIP CAM
         </button>
       )}
 
-      {/* Decorative brackets */}
-      <div className="absolute inset-3 pointer-events-none z-10">
-        <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-pink-400/60 rounded-tl-xl" />
-        <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-pink-400/60 rounded-tr-xl" />
-        <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-pink-400/60 rounded-bl-xl" />
-        <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-pink-400/60 rounded-br-xl" />
+      {/* Hard Crosshair Frame Crop Marks */}
+      <div className="absolute inset-2 pointer-events-none z-10">
+        <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-white" />
+        <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-white" />
+        <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-white" />
+        <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-white" />
       </div>
     </div>
   )

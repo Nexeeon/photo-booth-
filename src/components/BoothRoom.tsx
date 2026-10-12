@@ -7,7 +7,6 @@ import { UsersOnline } from './UsersOnline'
 import { FrameSelector } from './FrameSelector'
 import { PhotoStripPreview } from './PhotoStripPreview'
 import { Logo } from './Logo'
-import { Play, Share2, Copy, Check, Loader2 } from 'lucide-react'
 import { PHOTO_COUNT } from '../utils/frames'
 import type { UserRole } from '../types'
 import { useNavigate } from 'react-router-dom'
@@ -37,19 +36,18 @@ export const BoothRoom: React.FC<BoothRoomProps> = ({ roomId, role }) => {
     changeFrame,
     sessionState,
     countdownCount,
-    isCapturing,
     showFlash,
   } = useRoomSession({ roomId, role })
 
-  const roomUrl = `${window.location.origin}/booth/${roomId}?role=guest`
+  const roomUrl = typeof window !== 'undefined' ? `${window.location.origin}/booth/${roomId}?role=guest` : ''
   const photoIndex = session?.countdown?.photoIndex ?? 0
-  const onlineUsers = users.filter(u => u.isOnline)
+  const onlineUsers = users.filter((u) => u.isOnline)
 
   // Trigger capture when state shifts to 'capturing' — avoid double triggers per photoIndex
   useEffect(() => {
     if (sessionState === 'capturing' && !hasCapturedRef.current.has(photoIndex)) {
       hasCapturedRef.current.add(photoIndex)
-      capturePhoto(webcamRef)
+      void capturePhoto(webcamRef)
     }
   }, [sessionState, photoIndex, capturePhoto])
 
@@ -58,129 +56,144 @@ export const BoothRoom: React.FC<BoothRoomProps> = ({ roomId, role }) => {
     if (sessionState === 'preview' && session?.photos && session.photos.length >= PHOTO_COUNT) {
       navigate(`/result/${roomId}`)
     }
-  }, [sessionState, session?.photos?.length, navigate, roomId])
+  }, [sessionState, session?.photos, navigate, roomId])
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(roomUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      void navigator.clipboard.writeText(roomUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   const canStart = role === 'host' && onlineUsers.length >= 1 && sessionState === 'waiting'
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 size={40} className="text-pink-400 animate-spin" />
-          <p className="text-white/50">Joining the booth...</p>
+      <div className="min-h-screen bg-black flex items-center justify-center p-6 text-center font-mono-retro">
+        <div className="border-flat p-8 bg-charcoal max-w-sm w-full">
+          <p className="text-sm uppercase tracking-widest text-white mb-2 animate-pulse">
+            CONNECTING APPARATUS...
+          </p>
+          <p className="text-[10px] text-neutral-400 uppercase">
+            CALIBRATING ROOM CHASSIS #{roomId}
+          </p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="glass border-b border-white/5 px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-black text-white flex flex-col font-sans-clean selection:bg-white selection:text-black">
+      {/* Editorial Top Navigation */}
+      <header className="border-b border-neutral-800 px-6 py-4 flex items-center justify-between bg-black">
         <Logo />
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <UsersOnline users={users} />
           <button
+            type="button"
             onClick={() => setShowQR(!showQR)}
-            className="btn-secondary flex items-center gap-2 !px-4 !py-2 text-sm"
+            className="btn-flat-black text-xs !py-2 !px-3"
           >
-            <Share2 size={14} />
-            <span>Invite</span>
+            {showQR ? 'HIDE INVITE' : 'SHARE LINK'}
           </button>
         </div>
       </header>
 
-      {/* QR / Invite panel */}
+      {/* QR / Invite Accordion */}
       {showQR && (
-        <div className="glass border-b border-white/5 px-6 py-4 slide-up">
-          <div className="max-w-lg mx-auto flex items-center gap-6">
-            <div className="shrink-0 bg-white p-3 rounded-xl">
-              <QRCode value={roomUrl} size={96} />
+        <div className="border-b border-white bg-charcoal px-6 py-5">
+          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center gap-6">
+            <div className="p-3 bg-white border-2 border-black shrink-0">
+              <QRCode value={roomUrl} size={100} fgColor="#000000" bgColor="#FFFFFF" />
             </div>
-            <div className="flex-1">
-              <p className="text-sm text-white/50 mb-2">Room Code</p>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-3xl font-black tracking-widest gradient-text">{roomId}</span>
-              </div>
-              <p className="text-xs text-white/40 mb-3 break-all">{roomUrl}</p>
+            <div className="flex-1 font-mono-retro">
+              <span className="text-[10px] text-neutral-400 uppercase tracking-widest block mb-1">
+                SESSION TELETYPE CODE:
+              </span>
+              <p className="font-serif-classic text-3xl font-black text-white tracking-[0.2em] mb-2">
+                {roomId}
+              </p>
+              <p className="text-[11px] text-neutral-300 break-all mb-3 border-l-2 border-white pl-2">
+                {roomUrl}
+              </p>
               <button
+                type="button"
                 onClick={handleCopyLink}
-                className="flex items-center gap-2 glass px-4 py-2 rounded-xl text-sm text-white/70 hover:text-white transition-colors"
+                className="btn-flat-white text-[10px] !py-1.5 !px-4"
               >
-                {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                {copied ? 'Copied!' : 'Copy Link'}
+                {copied ? '[COPIED TO CLIPBOARD]' : 'COPY DIRECT URL'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main content */}
-      <main className="flex-1 px-4 py-6 max-w-7xl mx-auto w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 h-full">
-          {/* Left: Camera */}
-          <div className="flex flex-col gap-4">
+      {/* Main Studio Console */}
+      <main className="flex-1 px-4 py-8 max-w-7xl mx-auto w-full">
+        {/* Module Header Strip */}
+        <div className="flex items-center justify-between pb-3 mb-6 border-b border-neutral-800 font-mono-retro text-xs text-neutral-400">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-white" />
+            <span className="uppercase tracking-widest text-white">YOUR PHOTO BOOTH CONSOLE</span>
+          </div>
+          <span className="uppercase tracking-wider">ROOM: #{roomId}</span>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
+          {/* Left: Camera Feed & Controller */}
+          <div className="flex flex-col gap-6">
             <WebcamFeed
               webcamRef={webcamRef}
               remoteStream={remoteStream}
-              onReady={(stream) => setLocalStream(stream)}
               showFlash={showFlash}
-              isCapturing={isCapturing}
               countdownCount={countdownCount}
               isCountdownActive={sessionState === 'countdown' && session?.countdown?.isActive === true}
+              onReady={(stream) => setLocalStream(stream)}
             />
 
-            {/* Status bar */}
-            <div className="flex items-center justify-between glass rounded-2xl px-5 py-3">
+            {/* Status Bar */}
+            <div className="border-flat px-4 py-3 flex items-center justify-between bg-charcoal font-mono-retro text-xs">
               <div className="flex items-center gap-2">
-                <StatusDot state={sessionState} />
-                <span className="text-sm text-white/70 font-medium capitalize">
+                <span className={`w-2 h-2 inline-block ${sessionState === 'capturing' ? 'bg-white animate-ping' : 'bg-neutral-300'}`} />
+                <span className="uppercase tracking-wider font-bold text-white">
                   {getStatusLabel(sessionState, role)}
                 </span>
               </div>
-              <div className="text-sm text-white/40">
-                Photos: {session?.photos?.length ?? 0} / {PHOTO_COUNT}
+              <div className="text-neutral-400 uppercase text-[11px]">
+                CAPTURES: {session?.photos?.length ?? 0} / {PHOTO_COUNT}
               </div>
             </div>
 
-            {/* Frame selector */}
+            {/* Frame Selector */}
             <FrameSelector
-              selectedFrameId={session?.frameId ?? 'classic-pink'}
+              selectedFrameId={session?.frameId ?? 'classic-white'}
               onSelect={changeFrame}
               disabled={sessionState !== 'waiting'}
             />
 
-            {/* Start button (host only) */}
+            {/* Host Shutter Trigger */}
             {role === 'host' && (
               <button
+                type="button"
                 onClick={startSession}
                 disabled={!canStart}
-                className={`
-                  btn-primary flex items-center justify-center gap-3 text-lg
-                  ${!canStart ? 'opacity-40 cursor-not-allowed' : ''}
-                `}
+                className="btn-flat-white !py-4 text-sm w-full tracking-[0.2em]"
               >
-                <Play size={20} fill="currentColor" />
-                {sessionState === 'waiting' ? 'Start Photo Session' : 'Session Running...'}
+                {sessionState === 'waiting'
+                  ? 'START PHOTO SESSION (EXPOSE 4 FRAMES)'
+                  : 'SESSION RUNNING...'}
               </button>
             )}
 
             {role === 'guest' && sessionState === 'waiting' && (
-              <div className="glass rounded-2xl px-6 py-4 text-center">
-                <p className="text-white/50 text-sm">
-                  Waiting for the host to start the session...
-                </p>
+              <div className="border border-neutral-800 p-4 bg-charcoal text-center font-mono-retro text-xs text-neutral-400 uppercase tracking-widest">
+                [AWAITING HOST TO RELEASE SHUTTER]
               </div>
             )}
           </div>
 
-          {/* Right: Photo strip preview */}
+          {/* Right: Strip Contact Sheet Preview */}
           <div className="flex flex-col gap-4">
             <PhotoStripPreview
               photos={session?.photos ?? []}
@@ -195,24 +208,19 @@ export const BoothRoom: React.FC<BoothRoomProps> = ({ roomId, role }) => {
   )
 }
 
-function StatusDot({ state }: { state: string }) {
-  const colors: Record<string, string> = {
-    waiting: 'bg-white/30',
-    countdown: 'bg-amber-400 animate-pulse',
-    capturing: 'bg-pink-400 animate-ping',
-    preview: 'bg-emerald-400',
-    done: 'bg-emerald-400',
-  }
-  return <span className={`w-2.5 h-2.5 rounded-full ${colors[state] ?? 'bg-white/30'}`} />
-}
-
 function getStatusLabel(state: string, role: UserRole): string {
   switch (state) {
-    case 'waiting': return role === 'host' ? 'Ready — press Start!' : 'Waiting for host'
-    case 'countdown': return 'Get ready...'
-    case 'capturing': return '📸 Say cheese!'
-    case 'preview': return 'Wrapping up...'
-    case 'done': return 'All done!'
-    default: return state
+    case 'waiting':
+      return role === 'host' ? 'READY — TRIGGER SHUTTER' : 'WAITING FOR HOST'
+    case 'countdown':
+      return 'COUNTDOWN IN PROGRESS...'
+    case 'capturing':
+      return 'HOLD POSE — EXPOSING!'
+    case 'preview':
+      return 'DEVELOPING PHOTO STRIP...'
+    case 'done':
+      return 'SESSION COMPLETE'
+    default:
+      return state.toUpperCase()
   }
 }

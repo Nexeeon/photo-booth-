@@ -4,7 +4,6 @@ import { BoothRoom } from '../components/BoothRoom'
 import { useFirebaseRoom } from '../hooks/useFirebaseRoom'
 import { getOrCreateUserId, getOrCreateUserName } from '../utils/helpers'
 import type { UserRole, RoomUser } from '../types'
-import { Loader2 } from 'lucide-react'
 
 const BoothPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>()
@@ -26,27 +25,28 @@ const BoothPage: React.FC = () => {
       isOnline: true,
     }
 
-    // Guest needs to register their presence
     if (role === 'guest') {
       firebaseRoom.joinRoom(roomId, user)
-        .then(success => {
+        .then((success) => {
           if (!success) {
             alert('Room not found! Pastikan Host telah berada di dalam room dan memberikan kode/link yang benar.')
             navigate('/')
           }
         })
-        .catch(err => {
-          console.error("Failed to join room:", err);
-          alert('Gagal bergabung ke Firebase. Periksa Security Rules Firestore atau konfigurasi API Key. Lihat console.')
+        .catch((err: unknown) => {
+          console.error('Failed to join room:', err)
+          alert('Gagal bergabung ke Firebase. Periksa Security Rules Firestore atau konfigurasi API Key.')
           navigate('/')
         })
     }
-  }, [roomId, role])
+  }, [roomId, role, firebaseRoom, navigate])
 
   if (!roomId) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-white/50">Invalid room ID</p>
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <p className="font-mono-retro text-xs text-neutral-500 uppercase tracking-widest">
+          [INVALID SESSION IDENTIFIER]
+        </p>
       </div>
     )
   }
